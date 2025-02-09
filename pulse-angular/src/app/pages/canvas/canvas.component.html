@@ -1,0 +1,61 @@
+<app-navbar></app-navbar>
+
+<div class="main-layout">
+  <div class="toolbar" [class.expanded]="isMenuOpen">
+    <div class="tool-section">
+      <h3>Brush Settings</h3>
+      <div class="brush-width-container">
+        <span class="brush-width-label">Width: {{cursorWidth}}px</span>
+        <input 
+          type="range" 
+          [value]="cursorWidth" 
+          min="1" 
+          max="50" 
+          (input)="changeBrushWidth($event)"
+          class="slider"
+        />
+      </div>
+
+      <div class="auto-save-container">
+        <span class="auto-save-label">Auto Save</span>
+        <div class="toggle-container">
+          <label class="toggle-switch">
+            <input type="checkbox" 
+                   [(ngModel)]="autoSaveEnabled" 
+                   (change)="toggleAutoSave()">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-state">{{ autoSaveEnabled ? 'ON' : 'OFF' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tool-section">
+      <h3>Colors</h3>
+      <div class="color-grid">
+        <button 
+          *ngFor="let colorHex of colors" 
+          class="color-button" 
+          [class.active]="activeColor === colorHex"
+          (click)="changeColor(colorHex)" 
+          [style.background-color]="colorHex"
+          type="button">  <!-- Add type="button" to prevent default form submission -->
+        </button>
+      </div>
+    </div>
+
+    <div class="tool-section">
+      <h3>Actions</h3>
+      <button class="action-button" (click)="clearCanvas()">Clear</button>
+      <button class="action-button" (click)="saveCanvas()">Save</button>
+    </div>
+  </div>
+
+  <div class="canvas-container">
+    <canvas #canvas></canvas>
+  </div>
+
+  <div class="right-space">
+    <!-- Space for future content -->
+  </div>
+</div>

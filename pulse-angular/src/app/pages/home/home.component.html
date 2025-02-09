@@ -1,0 +1,22 @@
+<!-- src/app/pages/home/home.component.html -->
+<div class="home-container">
+  
+   <app-navbar></app-navbar>
+    <!-- Cards Section -->
+    <div class="container mt-4">
+      <h2 class="text-center mb-4">Latest Updates</h2>
+      <div class="row">
+        <div *ngFor="let item of items" class="col-md-4 mb-4">
+          <div class="card shadow-lg">
+            <img [src]="item.image" class="card-img-top"  alt="Card Image">
+            <div class="card-body">
+              <h5 class="card-title">{{ item.title }}</h5>
+              <p class="text-muted">{{ item.date | date:'mediumDate' }}</p>
+              <button (click)="readMore()" class="btn btn-primary">Read More</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
