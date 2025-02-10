@@ -35,10 +35,15 @@ import { ToastrModule } from 'ngx-toastr';
     MatProgressSpinnerModule,
     BrowserAnimationsModule,
     ToastrModule.forRoot({
-      timeOut: 3000,
-      positionClass: 'toast-top-right',
-      preventDuplicates: true,
-    })
+      timeOut: 3000, // Auto disappear in 3s
+      extendedTimeOut: 1000, // Shorter time when hovered
+      progressBar: true,
+      closeButton: true,
+      easing: 'ease-in-out', // Smooth easing effect
+      easeTime: 500, // Duration of animation
+      newestOnTop: false, // Avoid overlapping
+      preventDuplicates: true, // Prevent duplicate messages
+    }),
   ],
   providers: [],
 })

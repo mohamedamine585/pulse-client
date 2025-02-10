@@ -1,5 +1,6 @@
 import { Component, ElementRef, ViewChild, HostListener, OnInit, AfterViewInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { CanvasService } from '../../services/canvas.service';
 
 interface Point {
   x: number;
@@ -13,6 +14,8 @@ interface Point {
 })
 export class CanvasComponent implements OnInit, AfterViewInit {
   @ViewChild('canvas', { static: true }) private canvas!: ElementRef<HTMLCanvasElement>;
+
+  private canvasId : bigint = 1n;
   private ctx!: CanvasRenderingContext2D;
   private lastPoint: Point | null = null;
   
@@ -37,10 +40,14 @@ export class CanvasComponent implements OnInit, AfterViewInit {
     '#FF00FF'  // Magenta
   ];
 
-  constructor(private router: Router) {}
+  constructor(private router: Router,
+    private activatedRoute : ActivatedRoute,
+    private canvasService : CanvasService) {}
 
   ngOnInit(): void {
     this.startAutoSave();
+    this.canvasService.connect(this.canvasId.toString());
+
   }
   
   private generateRandomEdits(pixelsEds: any, pixelsPos: any): void {
@@ -365,10 +372,7 @@ private extractModifiedPixels(imageData: ImageData, bounds: {
    // link.click();
   }
 
-  @HostListener('window:resize')
-  onResize(): void {
-    this.initializeCanvas();
-  }
+
 
   @HostListener('mousedown', ['$event'])
   onMouseDown(event: MouseEvent): void {
