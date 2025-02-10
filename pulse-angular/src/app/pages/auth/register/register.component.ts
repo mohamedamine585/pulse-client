@@ -3,6 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AuthService } from '../../../services/auth.service';
+import { ToastrService } from 'ngx-toastr';
 
 @Component({
   selector: 'app-register',
@@ -20,7 +22,11 @@ export class RegisterComponent {
   loading = false;
   errorMessage = '';
 
-  constructor(private router: Router) {}
+  constructor(
+    private router: Router,
+    private authService: AuthService,
+    private toastr: ToastrService
+  ) {}
 
   validateEmail(email: string): boolean {
     const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
@@ -32,33 +38,42 @@ export class RegisterComponent {
   }
 
   register() {
-    // Reset error message
     this.errorMessage = '';
 
-    // Validate email
     if (!this.validateEmail(this.user.email)) {
       this.errorMessage = 'Please enter a valid email address';
       return;
     }
 
-    // Validate password length
     if (!this.validatePassword(this.user.password)) {
       this.errorMessage = 'Password must be at least 8 characters long';
       return;
     }
 
-    // Validate password match
     if (this.user.password !== this.user.confirmPassword) {
       this.errorMessage = 'Passwords do not match';
       return;
     }
 
     this.loading = true;
-    // Simulate API call
-    setTimeout(() => {
-      this.loading = false;
-      this.router.navigate(['/validate-account']);
-    }, 1500);
+    const registerData = {
+      username: this.user.username,
+      email: this.user.email,
+      password: this.user.password
+    };
+
+    this.authService.register(registerData).subscribe({
+      next: (response) => {
+        this.loading = false;
+        this.toastr.success('Registration successful! Please check your email to verify your account.', 'Success');
+        this.router.navigate(['/validate-account']);
+      },
+      error: (error) => {
+        this.loading = false;
+        this.errorMessage = error.error.message || 'Registration failed. Please try again.';
+        this.toastr.error(this.errorMessage, 'Error');
+      }
+    });
   }
 
   goToLogin() {

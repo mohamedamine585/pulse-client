@@ -13,6 +13,7 @@ import { CanvasComponent } from './pages/canvas/canvas.component';
 import { RouterModule } from '@angular/router';
 import { routes } from './app.routes';
 import { NavbarComponent } from './components/navbar/navbar.component';
+import { ToastrModule } from 'ngx-toastr';
 
 @NgModule({
   bootstrap: [AppComponent],
@@ -31,7 +32,13 @@ import { NavbarComponent } from './components/navbar/navbar.component';
     FormsModule,
     HttpClientModule,
     BrowserModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    BrowserAnimationsModule,
+    ToastrModule.forRoot({
+      timeOut: 3000,
+      positionClass: 'toast-top-right',
+      preventDuplicates: true,
+    })
   ],
   providers: [],
 })

@@ -1,8 +1,9 @@
 // src/app/services/auth.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, delay } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { env } from '../environment/env';
+import { Router } from '@angular/router';
 
 export interface AuthResponse {
   success: boolean;
@@ -15,18 +16,76 @@ export interface AuthResponse {
 })
 export class AuthService {
   private apiUrl = env.authUrl;
+  private readonly TOKEN_KEY = 'auth_token';
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private router: Router) {}
 
-  register(userData: { username: string; email: string; password: string }): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/register`, userData);
+  saveToken(token: string): void {
+    localStorage.setItem(this.TOKEN_KEY, token);
   }
 
-  login(credentials: { email: string; password: string }): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/login`, credentials);
+  getToken(): string | null {
+    return localStorage.getItem(this.TOKEN_KEY);
   }
 
-  validateAccount(token: string): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/validate-account`, { token });
+  removeToken(): void {
+    localStorage.removeItem(this.TOKEN_KEY);
+  }
+
+  register(userData: {
+    username: string;
+    email: string;
+    password: string;
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/register`, userData)
+      .pipe(
+        tap((response: any) => {
+          if (response.token) {
+            this.saveToken(response.token);
+          }
+        })
+      );
+  }
+
+  login(credentials: {
+    email: string;
+    password: string;
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/login`, credentials)
+      .pipe(
+        tap((response: any) => {
+          if (response.token) {
+            this.saveToken(response.token);
+          }
+        })
+      );
+  }
+
+  validateEmail(token: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/activate/${token}`).pipe(
+      tap((response: any) => {
+        if (response.token) {
+          this.saveToken(response.token);
+        }
+      })
+    );
+  }
+
+  isLoggedIn(): boolean {
+    return !!this.getToken();
+  }
+ 
+  logout(): void {
+    this.removeToken();
+    this.router.navigate(['/login']);
+  }
+  isAuthenticated(): boolean {
+    const token = this.getToken();
+    return !!token;
+  }
+
+  handleAuthentication(token: string): void {
+    this.saveToken(token);
+    this.router.navigate(['/home']);
   }
 }
