@@ -29,6 +29,8 @@ private toastOptions = {
     if (this.socket) {
       this.socket.close();
     }
+    if(!canvasId && canvasId.length === 0)
+      return;
     const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.g32eyztZkhuniuPwwl9s4rcolpRbFJcYhs4Opzv7sU0";
     const wsUrl = new URL(`${env.wsUrl}/canvas`);
     wsUrl.searchParams.append('canvasId', canvasId);
@@ -44,6 +46,10 @@ private toastOptions = {
     this.socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        this.messageSubject.next({
+          pixelsEdits : data.values,
+          pixelsPositions : data.positions,
+        })
         this.toastr.info('Canvas update received', 'Update', this.toastOptions);
       } catch (error) {
         this.toastr.warning('Invalid canvas update received', 'Warning', this.toastOptions);
@@ -61,13 +67,21 @@ private toastOptions = {
 
   sendPixelUpdates(pixelsPositions: number[], pixelsEdits: number[]): void {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({
-        pixelsPositions,
-        pixelsEdits
-      }));
-    }
-  }
+      try{
+        console.log(pixelsEdits.length)
+        this.socket.send(JSON.stringify({
+          pixelsPositions,
+          pixelsEdits
+        }));
+        
+      }
 
+      catch(e){
+       console.log(e);
+      }
+
+  }
+  }
   getMessages(): Observable<CanvasMessage> {
     return this.messageSubject.asObservable();
   }

@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, HostListener, OnInit, AfterViewInit } from '@angular/core';
+import { Component, ElementRef, ViewChild, HostListener, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CanvasService } from '../../services/canvas.service';
 
@@ -12,18 +12,20 @@ interface Point {
   templateUrl: './canvas.component.html',
   styleUrls: ['./canvas.component.css']
 })
-export class CanvasComponent implements OnInit, AfterViewInit {
+export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
   @ViewChild('canvas', { static: true }) private canvas!: ElementRef<HTMLCanvasElement>;
 
   private canvasId : bigint = 1n;
   private ctx!: CanvasRenderingContext2D;
   private lastPoint: Point | null = null;
-  
+  loopAndUpdate = true;
   color: string = '#000000';
   cursorWidth: number = 5;
   drawing: boolean = false;
   activeColor: string = '#000000';
-  
+   private sendInterval: any;
+  private pixelBuffer: { positions: any[]; edits: any[] } = { positions: [], edits: [] };
+
   // Canvas settings
 
   private readonly defaultBackground: string = '#ffffff';
@@ -49,6 +51,16 @@ export class CanvasComponent implements OnInit, AfterViewInit {
     this.canvasService.connect(this.canvasId.toString());
 
   }
+
+  updateCanvas(){
+    this.canvasService.getMessages().subscribe(data =>{
+      if(data.pixelsEdits && data.pixelsPositions){
+        this.applyEdits(data.pixelsEdits,data.pixelsPositions)
+      }
+
+    })
+  }
+
   
   private generateRandomEdits(pixelsEds: any, pixelsPos: any): void {
     const pixelsEdits: number[] = pixelsEds ?? [];
@@ -75,36 +87,31 @@ export class CanvasComponent implements OnInit, AfterViewInit {
         pixelsPositions.push(pixelIndex);
     }
 
-    // Apply edits to the canvas
-    this.applyEdits(pixelsEdits, pixelsPositions);
-}
 
+    let blankedits: number[] = new Array(pixelsPositions.length).fill(255);
+
+    // Apply edits to the canvas
+    this.applyEdits(blankedits, pixelsPositions);
+}
 
 private applyEdits(pixelsEdits: number[], pixelsPositions: number[]): void {
-    const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight);
-    const data = imageData.data;
+  const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight);
+  const data = imageData.data;
 
-    // Apply each edit to the correct position
-    for (let i = 0; i < pixelsPositions.length; i++) {
-        const pos = pixelsPositions[i];
-        data[pos] = pixelsEdits[i * 4];       // R
-        data[pos + 1] = pixelsEdits[i * 4 + 1]; // G
-        data[pos + 2] = pixelsEdits[i * 4 + 2]; // B
-        data[pos + 3] = pixelsEdits[i * 4 + 3]; // A
-    }
+  for (let i = 0; i < pixelsPositions.length; i++) {
+    const pos = pixelsPositions[i] * 4; // Convert position to pixel index
+    const rgba = this.decodeRGBA(pixelsEdits[i]); // Decode RGBA
 
-    // Update the canvas with the modified pixel data
-    this.ctx.putImageData(imageData, 0, 0);
+    // Apply the decoded RGBA values
+    data[pos] = rgba.r;       // R
+    data[pos + 1] = rgba.g;   // G
+    data[pos + 2] = rgba.b;   // B
+    data[pos + 3] = rgba.a;   // A
+  }
 
-    console.log('Edits applied:', {
-        totalEdits: pixelsPositions.length,
-        firstEdit: {
-            position: pixelsPositions[0],
-            color: pixelsEdits.slice(0, 4)
-        }
-    });
+  // Update the canvas with the modified pixel data
+  this.ctx.putImageData(imageData, 0, 0);
 }
-
 
 
   ngAfterViewInit(): void {
@@ -118,9 +125,10 @@ private applyEdits(pixelsEdits: number[], pixelsPositions: number[]): void {
     
     this.ctx = context;
     this.initializeCanvas();
-    
-    // Move generateRandomEdits here, after canvas is initialized
-    this.generateRandomEdits(null,null);
+    this.startSendingPixels();
+    this.updateCanvas();
+    this.testEncodeDecode()
+     
   }
 
   private initializeCanvas(): void {
@@ -132,7 +140,7 @@ private applyEdits(pixelsEdits: number[], pixelsPositions: number[]): void {
     
     // Set initial canvas state
     this.ctx.fillStyle = this.defaultBackground;
-    this.ctx.fillRect(0, 0, canvas.width, canvas.height);
+    this.ctx.fillRect(0, 0, canvas.width * 0.1, canvas.height * 0.1);
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
   }
@@ -189,13 +197,23 @@ private drawLine(from: Point, to: Point): void {
 }
 
 private captureDrawnPixels(from: Point, to: Point): void {
-    const bounds = this.calculateDrawBounds(from, to);
-    const imageData = this.getDrawnAreaImageData(bounds);
-    const { pixelsEdits, pixelsPositions } = this.extractModifiedPixels(imageData, bounds);
-    
-    console.log({ pixelsEdits, pixelsPositions });
-}
+  const bounds = this.calculateDrawBounds(from, to);
+  const imageData = this.getDrawnAreaImageData(bounds);
+  const { pixelsEdits, pixelsPositions } = this.extractModifiedPixels(imageData, bounds);
 
+  // Store pixels in buffer
+  this.pixelBuffer.positions.push(...pixelsPositions);
+  this.pixelBuffer.edits.push(...pixelsEdits);
+}
+private startSendingPixels(): void {
+  this.sendInterval = setInterval(() => {
+    if (this.pixelBuffer.positions.length > 0) {
+
+      this.canvasService.sendPixelUpdates(this.pixelBuffer.positions, this.pixelBuffer.edits);
+      this.pixelBuffer = { positions: [], edits: [] }; // Reset buffear
+    }
+  }, 2000);
+}
 private calculateDrawBounds(from: Point, to: Point): {
     minX: number;
     maxX: number;
@@ -231,51 +249,81 @@ private getDrawnAreaImageData(bounds: {
         bounds.width,
         bounds.height
     );
-}
-
-private extractModifiedPixels(imageData: ImageData, bounds: {
-    minX: number;
-    minY: number;
-    width: number;
-    height: number;
+}private extractModifiedPixels(imageData: ImageData, bounds: {
+  minX: number;
+  minY: number;
+  width: number;
+  height: number;
 }): { pixelsEdits: number[], pixelsPositions: number[] } {
-    const pixelsEdits: number[] = [];
-    const pixelsPositions: number[] = [];
+  const pixelsEdits: number[] = [];
+  const pixelsPositions: number[] = [];
 
-    for (let y = 0; y < bounds.height; y++) {
-        for (let x = 0; x < bounds.width; x++) {
-            const i = (y * bounds.width + x) * 4;
-            if (imageData.data[i + 3] > 0) { // If pixel is not transparent
-                // Store RGBA values
-                pixelsEdits.push(
-                    imageData.data[i],     // R
-                    imageData.data[i + 1], // G
-                    imageData.data[i + 2], // B
-                    imageData.data[i + 3]  // A
-                );
+  for (let y = 0; y < bounds.height; y++) {
+    for (let x = 0; x < bounds.width; x++) {
+      const i = (y * bounds.width + x) * 4;
+      if (imageData.data[i + 3] > 0) { // If pixel is not transparent
+        const r = imageData.data[i];
+        const g = imageData.data[i + 1];
+        const b = imageData.data[i + 2];
+        const a = imageData.data[i + 3];
 
-                // Calculate actual position in full canvas array
-                const actualX = Math.floor(Math.max(0, bounds.minX - this.cursorWidth) + x);
-                const actualY = Math.floor(Math.max(0, bounds.minY - this.cursorWidth) + y);
-                const basePosition = actualY * this.canvasWidth + actualX;
-                
-                // Store individual positions for R,G,B,A
-                pixelsPositions.push(
-                    basePosition,     // Position for R
-                    basePosition + 1, // Position for G
-                    basePosition + 2, // Position for B
-                    basePosition + 3  // Position for A
-                );
-            }
-        }
+        // Log the extracted RGBA values
+
+        // Encode RGBA into a single number
+        const rgba = this.encodeRGBA(r, g, b, a);
+
+        // Log the encoded value
+
+        // Store the encoded RGBA value
+        pixelsEdits.push(rgba);
+
+        // Calculate actual position in full canvas array
+        const actualX = Math.floor(bounds.minX + x);
+        const actualY = Math.floor(bounds.minY + y);
+        const basePosition = actualY * this.canvasWidth + actualX;
+
+        // Store position
+        pixelsPositions.push(basePosition);
+      }
     }
+  }
 
-    return { pixelsEdits, pixelsPositions };
+  return { pixelsEdits, pixelsPositions };
 }
+private testEncodeDecode(): void {
+  const testRGBA = { r: 255, g: 128, b: 64, a: 255 };
+  const encoded = this.encodeRGBA(testRGBA.r, testRGBA.g, testRGBA.b, testRGBA.a);
+  const decoded = this.decodeRGBA(encoded);
 
+  console.log('Test RGBA:', testRGBA);
+  console.log('Encoded:', encoded);
+  console.log('Decoded:', decoded);
+
+  if (
+    decoded.r === testRGBA.r &&
+    decoded.g === testRGBA.g &&
+    decoded.b === testRGBA.b &&
+    decoded.a === testRGBA.a
+  ) {
+    console.log('Encoding and decoding works correctly!');
+  } else {
+    console.error('Encoding and decoding failed!');
+  }
+}
+private encodeRGBA(r: number, g: number, b: number, a: number): number {
+  return ((r << 24) | (g << 16) | (b << 8) | a) >>> 0; // Ensure unsigned 32-bit integer
+}
   private isPointInCanvas(point: Point): boolean {
     return point.x >= 0 && point.x <= this.canvasWidth && 
            point.y >= 0 && point.y <= this.canvasHeight;
+  } 
+  private decodeRGBA(rgba: number): { r: number, g: number, b: number, a: number } {
+    return {
+      r: (rgba >> 24) & 0xff, // Extract R
+      g: (rgba >> 16) & 0xff, // Extract G
+      b: (rgba >> 8) & 0xff,  // Extract B
+      a: rgba & 0xff          // Extract A
+    };
   }
 
   private showPixelData(): void {
@@ -400,6 +448,7 @@ private extractModifiedPixels(imageData: ImageData, bounds: {
 
 
   ngOnDestroy() {
+    clearInterval(this.sendInterval);
     this.stopAutoSave();
   }
 
