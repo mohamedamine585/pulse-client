@@ -55,7 +55,9 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
   updateCanvas(){
     this.canvasService.getMessages().subscribe(data =>{
       if(data.pixelsEdits && data.pixelsPositions){
-        this.applyEdits(data.pixelsEdits,data.pixelsPositions)
+
+        console.log("update ",data.pixelsPositions.length)
+        this.applyEdits(data.pixelsEdits,data.pixelsPositions,data.lineWidth)
       }
 
     })
@@ -91,12 +93,13 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
     let blankedits: number[] = new Array(pixelsPositions.length).fill(255);
 
     // Apply edits to the canvas
-    this.applyEdits(blankedits, pixelsPositions);
+    this.applyEdits(blankedits, pixelsPositions,this.ctx.lineWidth);
 }
 
-private applyEdits(pixelsEdits: number[], pixelsPositions: number[]): void {
+private applyEdits(pixelsEdits: number[], pixelsPositions: number[],lineWidth : number): void {
   const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight);
   const data = imageData.data;
+  this.ctx.lineWidth = lineWidth;
 
   for (let i = 0; i < pixelsPositions.length; i++) {
     const pos = pixelsPositions[i] * 4; // Convert position to pixel index
@@ -178,7 +181,13 @@ private applyEdits(pixelsEdits: number[], pixelsPositions: number[]): void {
     }
 
     this.lastPoint = currentPoint;
-    this.showPixelData();
+    if (this.pixelBuffer.positions.length > 0) {
+      // Send pixel updates to the backend
+      this.canvasService.sendPixelUpdates(this.pixelBuffer.positions, this.pixelBuffer.edits);
+
+      // Reset the buffer
+      this.pixelBuffer = { positions: [], edits: [] };
+    }
 }
 
 private canDraw(event: MouseEvent): boolean {
@@ -197,22 +206,29 @@ private drawLine(from: Point, to: Point): void {
 }
 
 private captureDrawnPixels(from: Point, to: Point): void {
+  // Calculate the bounds of the drawn area
   const bounds = this.calculateDrawBounds(from, to);
+
+  // Get the image data for the drawn area
   const imageData = this.getDrawnAreaImageData(bounds);
+
+  // Extract modified pixels (non-transparent pixels)
   const { pixelsEdits, pixelsPositions } = this.extractModifiedPixels(imageData, bounds);
 
-  // Store pixels in buffer
+  // Store pixels in the buffer
   this.pixelBuffer.positions.push(...pixelsPositions);
   this.pixelBuffer.edits.push(...pixelsEdits);
 }
 private startSendingPixels(): void {
   this.sendInterval = setInterval(() => {
     if (this.pixelBuffer.positions.length > 0) {
-
+      // Send pixel updates to the backend
       this.canvasService.sendPixelUpdates(this.pixelBuffer.positions, this.pixelBuffer.edits);
-      this.pixelBuffer = { positions: [], edits: [] }; // Reset buffear
+
+      // Reset the buffer
+      this.pixelBuffer = { positions: [], edits: [] };
     }
-  }, 2000);
+  }, 50); // Send updates every 2 seconds
 }
 private calculateDrawBounds(from: Point, to: Point): {
     minX: number;
@@ -249,7 +265,8 @@ private getDrawnAreaImageData(bounds: {
         bounds.width,
         bounds.height
     );
-}private extractModifiedPixels(imageData: ImageData, bounds: {
+}
+private extractModifiedPixels(imageData: ImageData, bounds: {
   minX: number;
   minY: number;
   width: number;
@@ -260,29 +277,26 @@ private getDrawnAreaImageData(bounds: {
 
   for (let y = 0; y < bounds.height; y++) {
     for (let x = 0; x < bounds.width; x++) {
-      const i = (y * bounds.width + x) * 4;
-      if (imageData.data[i + 3] > 0) { // If pixel is not transparent
-        const r = imageData.data[i];
-        const g = imageData.data[i + 1];
-        const b = imageData.data[i + 2];
-        const a = imageData.data[i + 3];
+      const i = (y * bounds.width + x) * 4; // Index in the ImageData array
+      const alpha = imageData.data[i + 3]; // Alpha channel value
 
-        // Log the extracted RGBA values
+      // Only process non-transparent pixels
+      if (alpha > 0) {
+        const r = imageData.data[i];     // Red channel
+        const g = imageData.data[i + 1]; // Green channel
+        const b = imageData.data[i + 2]; // Blue channel
+        const a = imageData.data[i + 3]; // Alpha channel
 
-        // Encode RGBA into a single number
+        // Encode RGBA into a single 32-bit integer
         const rgba = this.encodeRGBA(r, g, b, a);
 
-        // Log the encoded value
-
-        // Store the encoded RGBA value
-        pixelsEdits.push(rgba);
-
-        // Calculate actual position in full canvas array
+        // Calculate the actual position in the full canvas array
         const actualX = Math.floor(bounds.minX + x);
         const actualY = Math.floor(bounds.minY + y);
         const basePosition = actualY * this.canvasWidth + actualX;
 
-        // Store position
+        // Store the encoded RGBA value and position
+        pixelsEdits.push(rgba);
         pixelsPositions.push(basePosition);
       }
     }
@@ -310,13 +324,14 @@ private testEncodeDecode(): void {
     console.error('Encoding and decoding failed!');
   }
 }
-private encodeRGBA(r: number, g: number, b: number, a: number): number {
-  return ((r << 24) | (g << 16) | (b << 8) | a) >>> 0; // Ensure unsigned 32-bit integer
-}
+
   private isPointInCanvas(point: Point): boolean {
     return point.x >= 0 && point.x <= this.canvasWidth && 
            point.y >= 0 && point.y <= this.canvasHeight;
   } 
+  private encodeRGBA(r: number, g: number, b: number, a: number): number {
+    return ((r << 24) | (g << 16) | (b << 8) | a) >>> 0; // Ensure unsigned 32-bit integer
+  }
   private decodeRGBA(rgba: number): { r: number, g: number, b: number, a: number } {
     return {
       r: (rgba >> 24) & 0xff, // Extract R
