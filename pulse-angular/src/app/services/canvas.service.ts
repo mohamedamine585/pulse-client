@@ -15,6 +15,7 @@ interface CanvasMessage {
 export class CanvasService {
   private socket: WebSocket | null = null;
   private messageSubject = new Subject<CanvasMessage>();
+  private sessionId : any ;
 
 private toastOptions = {
   closeButton: true,
@@ -22,6 +23,7 @@ private toastOptions = {
   timeOut: 3000, // Auto disappear after 3 seconds
   extendedTimeOut: 1000, // Shorter time when hovered
 };
+
 
 
   constructor(private toastr: ToastrService) { }
@@ -46,15 +48,21 @@ private toastOptions = {
 
     this.socket.onmessage = (event) => {
       try {
-        console.log(event.data)
+      
         const data = JSON.parse(event.data);
         console.log(data)
-        this.messageSubject.next({
-          pixelsEdits : data.values,
-          pixelsPositions : data.positions,
-          lineWidth: data.lineWidth
-        })
-        this.toastr.info('Canvas update received', 'Update', this.toastOptions);
+        if(data.message === "hello"){
+           this.sessionId = data.sessionId;
+        }
+        else if(data.sessionId != this.sessionId){
+          this.messageSubject.next({
+            pixelsEdits : data.values,
+            pixelsPositions : data.positions,
+            lineWidth: data.lineWidth
+          })
+          this.toastr.info('Canvas update received', 'Update', this.toastOptions);
+        }
+      
       } catch (error) {
         console.log(error)
         this.toastr.warning('Invalid canvas update received', 'Warning', this.toastOptions);
@@ -73,10 +81,12 @@ private toastOptions = {
   sendPixelUpdates(pixelsPositions: number[], pixelsEdits: number[]): void {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try{
-        console.log("sent  ",pixelsEdits.length)
+
+        const sessionId = this.sessionId;
         this.socket.send(JSON.stringify({
           pixelsPositions,
-          pixelsEdits
+          pixelsEdits,
+          sessionId
         }));
         
       }

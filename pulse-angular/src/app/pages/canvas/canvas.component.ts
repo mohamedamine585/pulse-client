@@ -48,6 +48,12 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
 
   ngOnInit(): void {
     this.startAutoSave();
+   this.activatedRoute.queryParams.subscribe(ps =>{ try{ this.canvasId = BigInt(ps['canvasId'])}catch(e){console.log(e)}} );
+  
+   if(!this.canvasId ){
+    this.canvasId = 1n;
+   }
+
     this.canvasService.connect(this.canvasId.toString());
 
   }
@@ -110,6 +116,7 @@ private applyEdits(pixelsEdits: number[], pixelsPositions: number[],lineWidth : 
     data[pos + 1] = rgba.g;   // G
     data[pos + 2] = rgba.b;   // B
     data[pos + 3] = rgba.a;   // A
+    
   }
 
   // Update the canvas with the modified pixel data
@@ -183,6 +190,7 @@ private applyEdits(pixelsEdits: number[], pixelsPositions: number[],lineWidth : 
     this.lastPoint = currentPoint;
     if (this.pixelBuffer.positions.length > 0) {
       // Send pixel updates to the backend
+      console.log("SENT UPDATE ",this.pixelBuffer.edits.length)
       this.canvasService.sendPixelUpdates(this.pixelBuffer.positions, this.pixelBuffer.edits);
 
       // Reset the buffer
@@ -248,8 +256,8 @@ private calculateDrawBounds(from: Point, to: Point): {
         maxX,
         minY,
         maxY,
-        width: Math.ceil(maxX - minX + this.cursorWidth),
-        height: Math.ceil(maxY - minY + this.cursorWidth)
+        width: Math.ceil(maxX - minX + this.cursorWidth * 1.5),
+        height: Math.ceil(maxY - minY + this.cursorWidth * 1.5)
     };
 }
 
@@ -309,9 +317,7 @@ private testEncodeDecode(): void {
   const encoded = this.encodeRGBA(testRGBA.r, testRGBA.g, testRGBA.b, testRGBA.a);
   const decoded = this.decodeRGBA(encoded);
 
-  console.log('Test RGBA:', testRGBA);
-  console.log('Encoded:', encoded);
-  console.log('Decoded:', decoded);
+
 
   if (
     decoded.r === testRGBA.r &&
@@ -319,9 +325,7 @@ private testEncodeDecode(): void {
     decoded.b === testRGBA.b &&
     decoded.a === testRGBA.a
   ) {
-    console.log('Encoding and decoding works correctly!');
   } else {
-    console.error('Encoding and decoding failed!');
   }
 }
 
@@ -388,7 +392,6 @@ private testEncodeDecode(): void {
       }
     }
 
-    console.log('Non-black and non-white pixels:', nonBlackNonWhitePixels);
     return nonBlackNonWhitePixels;
   }
 
