@@ -1,20 +1,8 @@
-<app-navbar></app-navbar>
 
 <div class="main-layout">
   <div class="toolbar" [class.expanded]="isMenuOpen">
     <div class="tool-section">
-      <h3>Brush Settings</h3>
-      <div class="brush-width-container">
-        <span class="brush-width-label">Width: {{cursorWidth}}px</span>
-        <input 
-          type="range" 
-          [value]="cursorWidth" 
-          min="1" 
-          max="50" 
-          (input)="changeBrushWidth($event)"
-          class="slider"
-        />
-      </div>
+    
 
       <div class="auto-save-container">
         <span class="auto-save-label">Auto Save</span>

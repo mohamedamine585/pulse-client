@@ -51,16 +51,31 @@ private toastOptions = {
       
         const data = JSON.parse(event.data);
         console.log(data)
-        if(data.message === "hello"){
+        if(data.messageType == "HELLO"){
            this.sessionId = data.sessionId;
         }
-        else if(data.sessionId != this.sessionId){
+        else if( data.messageType == "CANVAS_UPDATE" && data.sessionId != this.sessionId){
           this.messageSubject.next({
             pixelsEdits : data.values,
             pixelsPositions : data.positions,
             lineWidth: data.lineWidth
           })
           this.toastr.info('Canvas update received', 'Update', this.toastOptions);
+        }
+        else if( data.messageType == "NEW_USER"  && data.sessionId == this.sessionId){
+          this.messageSubject.next({
+            pixelsEdits : data.values,
+            pixelsPositions : data.positions,
+            lineWidth: data.lineWidth
+          })        
+        }
+        else if(data.messageType == "NEW_USER"  && data.sessionId != this.sessionId){
+          this.messageSubject.next({
+            pixelsEdits : data.values,
+            pixelsPositions : data.positions,
+            lineWidth: data.lineWidth
+          })        
+          this.toastr.info('New User Joined', 'Update', this.toastOptions);
         }
       
       } catch (error) {
