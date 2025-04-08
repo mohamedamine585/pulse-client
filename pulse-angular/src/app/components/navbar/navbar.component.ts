@@ -12,6 +12,16 @@ export class NavbarComponent {
   constructor(private router : Router,private authService : AuthService) { }
     
   
+  goToTrade() {
+    this.router.navigate(['trade']);
+  }
+  goToMe(){
+    this.router.navigate(['me']);
+  }
+  quitApp(){
+    this.logout()
+  }
+
   logout(){
     this.authService.logout();
     try{

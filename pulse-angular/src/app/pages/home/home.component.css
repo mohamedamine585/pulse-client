@@ -1,0 +1,247 @@
+.home-container {
+  padding: 20px;
+  /* Use a gentle linear gradient background */
+  background: linear-gradient(135deg, #f0f2f5, #e4e8ec);
+}
+
+.home-container h2 {
+  margin-top: 20px;
+  margin-bottom: 10px;
+  color: #2d3748;
+  font-size: 1.75rem; /* increased font size */
+  font-weight: 600;
+}
+
+/* Search and Create Section */
+.search-create-container {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.search-input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #e0e4e8;
+  border-radius: 4px;
+  font-size: 1rem;
+  outline: none;
+  transition: box-shadow 0.3s ease;
+}
+.search-input:focus {
+  box-shadow: 0 0 5px rgba(49, 130, 206, 0.5);
+}
+.add-canvas-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #3182ce, #2c5282);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+.add-canvas-btn:hover {
+  background: linear-gradient(135deg, #4299e1, #2b6cb0);
+  transform: translateY(-2px);
+}
+
+/* Update cards container to wrap and center cards */
+.cards-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 10px;
+  justify-content: center;
+}
+
+/* Enhance card appearance */
+.card {
+  background: #fff;
+  border-radius: 12px; /* increased border radius */
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); /* stronger shadow */
+  overflow: hidden;
+  width: 300px; /* Fixed width for consistency */
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+.card-img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+}
+.card-body {
+  padding: 15px;
+}
+.card-body h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #2d3748;
+}
+.card-body p {
+  margin: 5px 0 0;
+  color: #718096;
+  font-size: 0.9rem;
+}
+
+/* Modernize the "Read More" button */
+.card-body button {
+  background: linear-gradient(135deg, #3182ce, #2c5282);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+.card-body button:hover {
+  background: linear-gradient(135deg, #4299e1, #2b6cb0);
+  transform: translateY(-2px);
+}
+
+/* Floating Action Button (FAB) */
+.fab {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.fab:hover {
+  background-color: #0056b3;
+  transform: scale(1.1);
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+.fab-left {
+  width: 60px;
+  height: 60px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.fab-left:hover {
+  background-color: #0056b3;
+  transform: scale(1.1);
+}
+
+.fab-left:active {
+  transform: scale(0.95);
+}
+
+.fab-center {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 60px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.fab-center:hover {
+  background-color: #0056b3;
+  transform: translateX(-50%) scale(1.1);
+}
+
+.fab-center:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
+/* Adjust the inline "+" button (FAB) */
+.fab-inline {
+  width: 60px;
+  height: 60px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  margin-top: 80px;
+  margin-right: 20px;
+  margin-left: 20px;
+}
+
+.fab-inline:hover {
+  background-color: #0056b3;
+  transform: scale(1.05);
+}
+
+.fab-inline:active {
+  transform: scale(0.95);
+}
+
+/* Footer Icons Section */
+.footer-icons {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin-top: 30px;
+}
+
+.icon-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: none;
+  border: none;
+  color: #2d3748;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: color 0.3s ease, transform 0.2s ease;
+}
+
+.icon-btn i {
+  font-size: 2rem;
+  margin-bottom: 5px;
+}
+
+.icon-btn:hover {
+  color: #3182ce;
+  transform: scale(1.1);
+}

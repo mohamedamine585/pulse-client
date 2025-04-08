@@ -3,7 +3,7 @@ import { BrowserModule } from '@angular/platform-browser';
 import { RegisterComponent } from './pages/auth/register/register.component';
 import { LoginComponent } from './pages/auth/login/login.component';
 import { HttpClientModule } from '@angular/common/http';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { AppComponent } from './app.component';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -14,6 +14,9 @@ import { RouterModule } from '@angular/router';
 import { routes } from './app.routes';
 import { NavbarComponent } from './components/navbar/navbar.component';
 import { ToastrModule } from 'ngx-toastr';
+import { CanvasDialogComponent } from './pages/canvas-dialog/canvas-dialog/canvas-dialog.component';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 @NgModule({
   bootstrap: [AppComponent],
@@ -21,6 +24,7 @@ import { ToastrModule } from 'ngx-toastr';
   declarations: [
     AppComponent,
     RegisterComponent,
+    CanvasDialogComponent,
     LoginComponent,
     ValidateAccountComponent,
     HomeComponent,
@@ -30,10 +34,13 @@ import { ToastrModule } from 'ngx-toastr';
   imports: [
     RouterModule.forRoot(routes),
     FormsModule,
+    ReactiveFormsModule,
     HttpClientModule,
     BrowserModule,
     MatProgressSpinnerModule,
+    MatDialogModule,
     BrowserAnimationsModule,
+    MatSlideToggleModule,
     ToastrModule.forRoot({
       timeOut: 3000, // Auto disappear in 3s
       extendedTimeOut: 1000, // Shorter time when hovered

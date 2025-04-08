@@ -47,15 +47,20 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
     private canvasService : CanvasService) {}
 
   ngOnInit(): void {
-    this.startAutoSave();
-   this.activatedRoute.queryParams.subscribe(ps =>{ try{ this.canvasId = BigInt(ps['canvasId'])}catch(e){console.log(e)}} );
   
-   if(!this.canvasId ){
-    this.canvasId = 1n;
-   }
+    this.activatedRoute.queryParams.subscribe(params => {
+      if (params['canvasId']) {
+        try {
+        console.log("ID ",params['canvasId'])
+          this.canvasId = BigInt(params['canvasId']); // Extract and convert the :id parameter to BigInt
+        } catch (e) {
+          console.error('Invalid canvas ID:', e);
+        }
+      }
+    });
 
+    this.startAutoSave();
     this.canvasService.connect(this.canvasId.toString());
-
   }
 
   updateCanvas(){
@@ -126,7 +131,7 @@ private applyEdits(pixelsEdits: number[], pixelsPositions: number[],lineWidth : 
 
   ngAfterViewInit(): void {
     const canvas = this.canvas.nativeElement;
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: true }); // Enable willReadFrequently
     
     if (!context) {
       console.error('Canvas 2D context not supported');
@@ -472,6 +477,7 @@ private testEncodeDecode(): void {
 
   ngOnDestroy() {
     clearInterval(this.sendInterval);
+    this.canvasService.disconnect(true);
     this.stopAutoSave();
   }
 
