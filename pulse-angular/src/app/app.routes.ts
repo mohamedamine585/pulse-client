@@ -13,7 +13,6 @@ export const routes: Routes = [
   { path: 'login', component: LoginComponent , canActivate : [SessionGuard]},
   { path: 'validate-account/:token', component: ValidateAccountComponent ,canActivate : [SessionGuard]},
   {path: 'canvas' , component : CanvasComponent , canActivate : [AuthGuard]},
-  {path: 'canvas/:canvasId' , component : CanvasComponent , canActivate : [AuthGuard]},
   {path: 'home' , component : HomeComponent , canActivate : [AuthGuard]},
   {path: 'canvas-dialog' , component : CanvasDialogComponent , canActivate : [AuthGuard]},
   {path: '', redirectTo: '/home', pathMatch: 'full' }

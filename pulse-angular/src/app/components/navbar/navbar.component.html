@@ -5,22 +5,39 @@
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link" routerLink="/home" routerLinkActive="active">            <i class="fas fa-home"></i> Home
-        </a></li>
-        <li class="nav-item">
-          <a class="nav-link" (click)="goToMe()">
-            <i class="fas fa-user"></i> Me
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" (click)="goToTrade()">
-            <i class="fas fa-exchange-alt"></i> Trade
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" (click)="quitApp()">
-            <i class="fas fa-sign-out-alt"></i> Quit
-          </a>
+        <!-- User Dropdown -->
+        <li class="nav-item d-flex align-items-center" *ngIf="this.authService.isLoggedInSubject | async"> 
+          <div class="dropdown open custom-dropdown">
+            <button 
+              class="btn dropdown-toggle text-white" 
+              type="button" 
+              id="userDropdown" 
+              data-bs-toggle="dropdown" 
+              aria-expanded="false">
+              <i class="fas fa-user me-2"></i>
+              <span class="username">{{ username }}</span>
+            </button>
+          
+            <ul class="dropdown-menu dropdown-menu-end dark-dropdown" aria-labelledby="userDropdown">
+              <li>
+                <a class="dropdown-item d-flex align-items-center" routerLink="/profile">
+                  <i class="fas fa-id-badge me-2"></i> Profile
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item d-flex align-items-center" routerLink="/settings">
+                  <i class="fas fa-cog me-2"></i> Settings
+                </a>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <button class="dropdown-item d-flex align-items-center text-danger" (click)="quitApp()">
+                  <i class="fas fa-sign-out-alt me-2"></i> Logout
+                </button>
+              </li>
+            </ul>
+          </div>
+          
         </li>
       </ul>
     </div>

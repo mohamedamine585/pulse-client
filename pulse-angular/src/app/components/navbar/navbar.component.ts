@@ -9,9 +9,22 @@ import { AuthService } from '../../services/auth.service';
   styleUrl: './navbar.component.css'
 })
 export class NavbarComponent {
-  constructor(private router : Router,private authService : AuthService) { }
-    
-  
+  constructor(private router : Router,public authService : AuthService) {
+
+
+    this.authService.isLoggedInSubject.subscribe((isLoggedIn) => {
+      console.log('isLoggedIn:', isLoggedIn);
+    })
+
+    this.authService.user$.subscribe((user) => {
+      this.username = user?.username || ''; // Update username from user observable
+    });
+  }
+
+
+  username: string = ''; // Replace with dynamic data as needed
+
+
   goToTrade() {
     this.router.navigate(['trade']);
   }
@@ -28,8 +41,8 @@ export class NavbarComponent {
       this.router.navigate(['login']);
     }catch(e){
       console.log
+    }
   }
-}
   toCanvas(){
     console.log('to canvas');
     try{
@@ -38,6 +51,6 @@ export class NavbarComponent {
     }catch(e){
       console.log(e);
     }
-  
-}
+
+  }
 }

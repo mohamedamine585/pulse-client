@@ -1,0 +1,30 @@
+.dark-dropdown {
+    background-color: #212529; /* dark bg */
+    border-radius: 0.5rem;
+    min-width: 200px;
+    border: none;
+    padding: 0.5rem 0;
+    box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.2);
+  }
+  
+  .dark-dropdown .dropdown-item {
+    color: white;
+    font-size: 14px;
+    padding: 10px 16px;
+  }
+  
+  .dark-dropdown .dropdown-item i {
+    width: 20px;
+    text-align: center;
+  }
+  
+  .dark-dropdown .dropdown-item:hover,
+  .dark-dropdown .dropdown-item:focus {
+    background-color: #343a40; /* slightly lighter on hover */
+    color: #fff;
+  }
+  
+  .dark-dropdown .dropdown-divider {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  

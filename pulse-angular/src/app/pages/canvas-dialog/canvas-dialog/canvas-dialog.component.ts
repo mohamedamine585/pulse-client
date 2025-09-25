@@ -33,7 +33,7 @@ export class CanvasDialogComponent {
         (canvas) => {
           console.log('Canvas created:', canvas);
           if(canvas.id) {
-            this.dialog.close(canvas.id); // Close the dialog and pass the canvas ID
+            this.dialog.close(canvas); // Close the dialog and pass the canvas ID
           }
         },
         (error) => {
