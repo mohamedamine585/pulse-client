@@ -5,6 +5,17 @@ import { ToastrService } from 'ngx-toastr';
 import { AuthService } from './auth.service';
 import { HttpClient } from '@angular/common/http';
 
+
+export interface ConnectedUser{
+  userId: number;
+  username: string;
+  connectedAt: number;
+  canvasId: number;
+  color: string;
+  initials: string;
+  status: 'active' | 'inactive' | 'drawing' | 'idle';
+}
+
 enum EventType {
   USER_EVENT = "USER_EVENT",
 }
@@ -46,6 +57,8 @@ export class CanvasService {
   private sessionId : any ;
   private eventFeedSocket: WebSocket | null = null;
   private eventFeedSubject = new Subject<UserEvent>();
+  private connectedUsersSocket : WebSocket | null = null;
+  private connectedUsersSubject = new Subject<ConnectedUser>();
 
 private toastOptions = {
   closeButton: true,
@@ -65,7 +78,7 @@ private toastOptions = {
     }
     if(!canvasId)
       return;
-    const wsUrl = new URL(`${env.wsUrl}/live/canvas`);
+    const wsUrl = new URL(`${env.liveCanvas}`);
     wsUrl.searchParams.append('canvasId', canvasId.toString());
     wsUrl.searchParams.append('token', this.authservice.getToken() || '');
 
@@ -78,7 +91,6 @@ private toastOptions = {
         try {
 
           const data = JSON.parse(event.data);
-          console.log(data)
           if(data.messageType == "HELLO"){
              this.sessionId = data.sessionId;
           }
@@ -88,7 +100,6 @@ private toastOptions = {
               pixelsPositions : data.positions,
               lineWidth: data.lineWidth
             })
-            this.toastr.info('Canvas update received', 'Update', this.toastOptions);
           }
           else if( data.messageType == "NEW_USER"  && data.sessionId == this.sessionId){
             this.messageSubject.next({
@@ -103,11 +114,9 @@ private toastOptions = {
               pixelsPositions : data.positions,
               lineWidth: data.lineWidth
             })
-            this.toastr.info('New User Joined', 'Update', this.toastOptions);
           }
 
         } catch (error) {
-          console.log(error)
           this.toastr.warning('Invalid canvas update received', 'Warning', this.toastOptions);
         }
       };
@@ -122,7 +131,6 @@ private toastOptions = {
         this.toastr.warning('Server connection closed', 'Disconnected', this.toastOptions);
       };
     }catch(e){
-        console.log(e);
     }
 
 
@@ -134,7 +142,7 @@ private toastOptions = {
       this.eventFeedSocket.close();
     }
 
-    const wsUrl = new URL(`${env.wsUrl}/live/events`);
+    const wsUrl = new URL(`${env.liveEvents}`);
     wsUrl.searchParams.append('canvasId', canvasId.toString());
 
     try{
@@ -172,12 +180,53 @@ private toastOptions = {
   }
 
 
+  connectToConnectedUsersFeed(canvasId:number): void {
+    if (this.connectedUsersSocket) {
+      this.connectedUsersSocket.close();
+    }
+
+    const wsUrl = new URL(`${env.liveEvents}/connected-users`);
+    wsUrl.searchParams.append('canvasId', canvasId.toString());
+
+    try {
+      this.connectedUsersSocket = new WebSocket(wsUrl.toString());
+      this.connectedUsersSocket.onmessage = (event) => {
+        try {
+
+            const data = JSON.parse(event.data);
+            if(data != undefined){
+              this.connectedUsersSubject.next(data);
+
+            }
+
+
+        } catch (error) {
+          console.log(error)
+          this.toastr.warning('Invalid connected users update received', 'Warning', this.toastOptions);
+        }
+      };
+      this.connectedUsersSocket.onerror = (error) => {
+        this.toastr.error('Connected users feed connection error', 'Error', this.toastOptions);
+      };
+      this.connectedUsersSocket.onclose = (reason: CloseEvent) => {
+        if (reason.code == 1000)
+          return;
+        this.toastr.warning('Connected users feed connection closed', 'Disconnected', this.toastOptions);
+      };
+
+    }
+    catch (e) {
+      console.log(e);
+    }
+  }
 
   sendPixelUpdates(pixelsPositions: number[], pixelsEdits: number[]): void {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try{
 
         const sessionId = this.sessionId;
+
+        pixelsEdits = pixelsEdits.map(value => value >>> 0);
         this.socket.send(JSON.stringify({
           pixelsPositions,
           pixelsEdits,
@@ -200,6 +249,9 @@ private toastOptions = {
     return this.eventFeedSubject.asObservable();
   }
 
+  getConnectedUsersFeed(): Observable<ConnectedUser> {
+    return this.connectedUsersSubject.asObservable();
+  }
   disconnect(manual : boolean): void {
     if (this.socket) {
       this.socket.close(manual ? 1000 : 3000); // 1000 is a normal closure
@@ -212,9 +264,8 @@ private toastOptions = {
   }
 
   createCanvas(canvasName: string, isPrivate: boolean): Observable<any> {
-    console.log(this.authservice.getToken())
     return this.http.post(
-      `${env.apiUrl}/canvas`,
+      `${env.apiUrl}/api`,
       { canvasName, isPrivate },
       { headers: { 'Authorization': `Bearer ${this.authservice.getToken()}` } }
     );

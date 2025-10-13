@@ -1,11 +1,12 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { CanvasDialogComponent } from '../canvas-dialog/canvas-dialog/canvas-dialog.component';
-import {AuthService} from '../../services/auth.service';
+import { AuthService } from '../../services/auth.service';
+import { interval, Subscription } from 'rxjs';
 
 interface Canvas {
-  id : number;
+  id: number;
   image: string;
   title: string;
   description: string;
@@ -14,7 +15,7 @@ interface Canvas {
   status: 'Active' | 'Draft' | 'Closed';
   meta?: string;
   actionText?: string;
-  live?: boolean; // 👈 new field to handle live/red dot independently
+  live?: boolean;
 }
 
 @Component({
@@ -22,14 +23,15 @@ interface Canvas {
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.css']
 })
-export class HomeComponent {
+export class HomeComponent implements OnInit, OnDestroy {
   searchQuery: string = '';
+  dropdownOpen: boolean = false;
+  private refreshSub!: Subscription;
 
-  // Example trending canvases
   trendingCanvases: Canvas[] = [
     {
       id: 1,
-      image: 'https://cdn.prod.website-files.com/6615636a03a6003b067c36dd/661ffd0dbe9673d914edca2d_6423fc9ca8b5e94da1681a70_Screenshot%25202023-03-29%2520at%252010.53.43.jpeg',
+      image: 'http://localhost:8083/live/renderer/canvas/previews/324.png',
       title: 'Modern UI Design',
       description: 'Explore modern UI principles and design trends.',
       creator: 'Alice',
@@ -49,7 +51,6 @@ export class HomeComponent {
     }
   ];
 
-  // Example user collection
   myCollection: Canvas[] = [
     {
       id: 3,
@@ -75,64 +76,50 @@ export class HomeComponent {
     }
   ];
 
-  constructor(private router: Router, private dialog: MatDialog,private authService : AuthService) {}
+  constructor(private router: Router, private dialog: MatDialog, private authService: AuthService) {}
 
-  /** Triggered when user searches */
-  onSearch() {
-    console.log('Searching for:', this.searchQuery);
-    // TODO: integrate search with backend/filtering
+  ngOnInit() {
+    // Refresh images every 5 seconds
+    this.refreshSub = interval(5000).subscribe(() => this.refreshImages());
   }
 
-  /** Join a trending canvas */
-  joinCanvas(canvas: Canvas) {
-    console.log('Joining canvas:', canvas.title);
-    this.router.navigate(['canvas'], { queryParams: { canvasId: canvas.id } });
-  }
-
-  /** Create a new canvas via dialog */
-  createCanvas() {
-    const dialogRef = this.dialog.open(CanvasDialogComponent, {
-      width: '500px',
-      maxWidth: '90%',
-      height: 'auto',
-      maxHeight: '90%',
-      data: {}
-    });
-
-    dialogRef.afterClosed().subscribe((result: Canvas | null) => {
-      if (result) {
-        console.log('Canvas created successfully:', result);
-
-        this.router.navigate(['canvas'], { queryParams: { canvasId: result.id } });
-      } else {
-        console.log('Canvas creation cancelled or failed');
-      }
-    });
-  }
-
-  /** Open a canvas from "My Collection" */
-  openCanvas(canvas: Canvas) {
-    console.log('Opening canvas:', canvas.title);
-    this.router.navigate(['/canvas'], { queryParams: { title: canvas.title } });
-  }
-  dropdownOpen: boolean = false;
-
-  toggleDropdown() {
-    this.dropdownOpen = !this.dropdownOpen;
-  }
-
-  goToSettings() {
-    this.router.navigate(['settings']);
-  }
-  quitApp(){
-    this.logout()
-  }
-  logout(){
-    this.authService.logout();
-    try{
-      this.router.navigate(['login']);
-    }catch(e){
-      console.log
+  ngOnDestroy() {
+    if (this.refreshSub) {
+      this.refreshSub.unsubscribe();
     }
   }
+
+  private refreshImages() {
+    const timestamp = new Date().getTime();
+
+    this.trendingCanvases = this.trendingCanvases.map(c => ({
+      ...c,
+      image: this.appendTimestamp(c.image, timestamp)
+    }));
+
+    this.myCollection = this.myCollection.map(c => ({
+      ...c,
+      image: this.appendTimestamp(c.image, timestamp)
+    }));
+  }
+
+  private appendTimestamp(url: string, timestamp: number): string {
+    // Add ?t=12345 or &t=12345 to force reload
+    return url.includes('?') ? `${url}&t=${timestamp}` : `${url}?t=${timestamp}`;
+  }
+
+  // ... all other methods stay the same ...
+  onSearch() { console.log('Searching for:', this.searchQuery); }
+  joinCanvas(canvas: Canvas) { this.router.navigate(['canvas'], { queryParams: { canvasId: canvas.id } }); }
+  createCanvas() {
+    const dialogRef = this.dialog.open(CanvasDialogComponent, { width: '500px', maxWidth: '90%', height: 'auto', maxHeight: '90%', data: {} });
+    dialogRef.afterClosed().subscribe((result: Canvas | null) => {
+      if (result) this.router.navigate(['canvas'], { queryParams: { canvasId: result.id } });
+    });
+  }
+  openCanvas(canvas: Canvas) { this.router.navigate(['/canvas'], { queryParams: { title: canvas.title } }); }
+  toggleDropdown() { this.dropdownOpen = !this.dropdownOpen; }
+  goToSettings() { this.router.navigate(['settings']); }
+  quitApp() { this.logout(); }
+  logout() { this.authService.logout(); this.router.navigate(['login']); }
 }

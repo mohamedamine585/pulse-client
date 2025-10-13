@@ -1,6 +1,6 @@
 import { Component, ElementRef, ViewChild, HostListener, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
 import {ActivatedRoute, EventType, Router} from '@angular/router';
-import {CanvasService, UserEvent, UserEventType,Event} from '../../services/canvas.service';
+import {CanvasService, UserEvent, UserEventType, Event, ConnectedUser} from '../../services/canvas.service';
 
 interface Point {
   x: number;
@@ -56,13 +56,17 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
         const parsedId = Number(idParam);
         if (!isNaN(parsedId)) {
           this.canvasId = parsedId;
-          console.log('Canvas ID:', this.canvasId);
 
           // Connect to canvas and start auto-save only if valid ID
           this.startAutoSave();
           this.canvasService.connect(this.canvasId);
           this.canvasService.connectToEventFeed(this.canvasId);
+          this.canvasService.connectToConnectedUsersFeed(this.canvasId);
           this.handleEventFeed();
+          this.handleConnectedUsersFeed();
+
+          // Periodically clean up disconnected users
+          setInterval(() => this.cleanupDisconnectedUsers(), 10000); // Every 60 seconds
         } else {
           console.error('Invalid canvas ID:', idParam);
         }
@@ -72,18 +76,56 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
     });
   }
 
+  addConnectedUser(ConnectedUser: any) {
+    // Avoid duplicates
+    if (!this.connectedUsers.find(u => u.userId === ConnectedUser.userId)) {
+      this.connectedUsers.push(ConnectedUser);
+    }else {
+      const user = this.connectedUsers.find(u => u.userId === ConnectedUser.userId);
+      if(user){
+        user.status = 'drawing';
+      }
+    }
+  }
   private handleEventFeed() {
     this.canvasService.getEventFeed().subscribe(event => {
-      this.addEvent(event);
+      if(event.userEventType === UserEventType.USER_LEFT){
+        const user = this.connectedUsers.find(u => u.userId === event.userId);
+        if(user){
+          user.status = 'idle';
+        }
+
+        this.addEvent(event);
+
+      }
     });
   }
 
+  cleanupDisconnectedUsers() {
+      this.connectedUsers = this.connectedUsers.filter(user => user.status !== 'idle');
+
+  }
+  private handleConnectedUsersFeed() {
+    this.canvasService.getConnectedUsersFeed().subscribe(user => {
+      user = {...user
+        ,color: this.getReadableHexColor(),
+         status:'drawing',
+        initials: 'U'+ user.userId.toString()
+      }
+      this.addConnectedUser(user);
+    });
+  }
+   getReadableHexColor(): string {
+    const r = Math.floor(Math.random() * 136);
+    const g = Math.floor(Math.random() * 136);
+    const b = Math.floor(Math.random() * 136);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
 
   updateCanvas() {
     this.canvasService.getMessages().subscribe(data => {
       if (data.pixelsEdits && data.pixelsPositions) {
 
-        console.log("update ", data.pixelsPositions.length)
         this.applyEdits(data.pixelsEdits, data.pixelsPositions, data.lineWidth)
       }
 
@@ -293,6 +335,23 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
       bounds.height
     );
   }
+  private encodeRGBA(r: number, g: number, b: number, a: number): number {
+    return ((r << 24) | (g << 16) | (b << 8) | a) >>> 0; // Ensure unsigned 32-bit integer
+  }
+
+  private decodeRGBA(rgba: number): { r: number, g: number, b: number, a: number } {
+    rgba = this.normalizeInt(rgba);
+    return {
+      r: (rgba >> 24) & 0xff, // Extract R
+      g: (rgba >> 16) & 0xff, // Extract G
+      b: (rgba >> 8) & 0xff,  // Extract B
+      a: rgba & 0xff          // Extract A
+    };
+  }
+
+  private normalizeInt(value: number): number {
+    return value >>> 0;
+  }
 
   private extractModifiedPixels(imageData: ImageData, bounds: {
     minX: number;
@@ -325,6 +384,7 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
 
           // Store the encoded RGBA value and position
           pixelsEdits.push(rgba);
+
           pixelsPositions.push(basePosition);
         }
       }
@@ -337,7 +397,6 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
     const testRGBA = {r: 255, g: 128, b: 64, a: 255};
     const encoded = this.encodeRGBA(testRGBA.r, testRGBA.g, testRGBA.b, testRGBA.a);
     const decoded = this.decodeRGBA(encoded);
-
 
     if (
       decoded.r === testRGBA.r &&
@@ -354,18 +413,6 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
       point.y >= 0 && point.y <= this.canvasHeight;
   }
 
-  private encodeRGBA(r: number, g: number, b: number, a: number): number {
-    return ((r << 24) | (g << 16) | (b << 8) | a) >>> 0; // Ensure unsigned 32-bit integer
-  }
-
-  private decodeRGBA(rgba: number): { r: number, g: number, b: number, a: number } {
-    return {
-      r: (rgba >> 24) & 0xff, // Extract R
-      g: (rgba >> 16) & 0xff, // Extract G
-      b: (rgba >> 8) & 0xff,  // Extract B
-      a: rgba & 0xff          // Extract A
-    };
-  }
 
   private showPixelData(): void {
     // Get pixel data as Uint8ClampedArray
@@ -518,11 +565,7 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
     this.isMenuOpen = !this.isMenuOpen;
   }
 
-  connectedUsers = [
-    {name: 'Alice Johnson', initials: 'AJ', color: '#FF6B6B', status: 'drawing'},
-    {name: 'Bob Smith', initials: 'BS', color: '#4ECDC4', status: 'idle'},
-    {name: 'Carol Lee', initials: 'CL', color: '#556270', status: 'active'}
-  ];
+  connectedUsers: ConnectedUser[] = [ ];
 
 
   recentEvents: UserEvent[] = [];
@@ -533,23 +576,7 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
     if (!event) {
       return;
     }
-    switch (event.userEventType) {
-      case UserEventType.USER_JOINED:
-        const userTag = {
-          userId: event.userId,
-          name: `User ${event.userId}`,
-          initials: `U${event.userId}`,
-          color: this.colors[event.userId % this.colors.length],
-          status: 'active'
-        }
-        this.connectedUsers.push(userTag);
-        break;
-      case UserEventType.USER_LEFT:
-        this.connectedUsers = this.connectedUsers.filter(u => event.userId !== event.userId);
-        break;
-      default:
-        event.description = `User ${event.userId} performed an action`;
-    }
+
 
     // Create UI-friendly description
     event.description = this.getUserEventDescription(event);

@@ -1,9 +1,8 @@
 :root {
   --navbar-height: 64px;
-  --bottom-space-height: 100px;
   --toolbar-width: 250px;
   --main-spacing: 20px;
-  --canvas-height: calc(100vh - var(--navbar-height) - (2 * var(--main-spacing)));
+  --canvas-height: calc(80vh - var(--navbar-height) - (2 * var(--main-spacing)));
 }
 
 .main-layout {
@@ -11,7 +10,7 @@
   gap: var(--main-spacing);
   padding: var(--main-spacing);
   margin-top: var(--navbar-height);
-  height: var(--canvas-height);
+  height: 800px;
 }
 
 /* Style for the toolbar */
@@ -131,18 +130,37 @@ input[type="range"]::-webkit-slider-runnable-track {
   border-radius: 2px;
 }
 
-/* Container for the canvas */
 .canvas-container {
-  position: relative;
-  flex: 3;
-  border: 2px solid #ccc;
-  border-radius: 8px;
-  background-color: #f9f9f9;
-  overflow: hidden;
+  flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+
+  /* New border style */
+  border: 2px solid #ccc;       /* subtle professional border */
+  border-radius: 12px;           /* rounded corners */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* soft shadow for depth */
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+/* Optional: highlight on hover */
+.canvas-container:hover {
+  border-color: #6200ee;         /* accent color highlight */
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+
+canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+
+  border-radius: 10px;          /* match container */
 }
 
 .right-space {
@@ -155,17 +173,6 @@ input[type="range"]::-webkit-slider-runnable-track {
   max-width: 300px;
 }
 
-/* Style for the canvas */
-canvas {
-  border: 1px solid #ccc;
-  cursor: crosshair;
-  background-color: #fff;
-  display: block;
-  max-width: 95%;  /* Limit canvas size within container */
-  max-height: 95%;
-  box-sizing: border-box;
-  aspect-ratio: 16 / 9;  /* Maintain aspect ratio */
-}
 
 .controls {
   margin-top: 20px;
@@ -353,28 +360,8 @@ input:checked + .toggle-slider:before {
   letter-spacing: 1px;
   margin-top: 2px;
 }
-.right-space {
-  width: 280px;
-  background-color: #f7f7f7;
-  padding: 16px;
-  border-left: 1px solid #ddd;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
 
-.users-events-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
 
-.panel-section h3 {
-  margin-bottom: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
 .right-space {
   width: 280px;
   background-color: #f7f7f7;
@@ -398,6 +385,51 @@ input:checked + .toggle-slider:before {
   font-weight: 600;
   color: #333;
 }
+
+/* Grid for avatars */
+.user-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.user-item {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.user-avatar {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: bold;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+}
+
+/* Status dot */
+.status-dot {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.status-dot.drawing { background-color: orange; }
+.status-dot.idle { background-color: gray; }
+.status-dot.active { background-color: green; }
+
 
 /* --- Users --- */
 .user-list {
@@ -503,4 +535,21 @@ input:checked + .toggle-slider:before {
 .event-time {
   font-size: 11px;
   color: #888;
+}
+.toolbar {
+  flex-shrink: 0;
+  width: var(--toolbar-width);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  overflow-y: auto;
+}
+
+.right-space {
+  flex-shrink: 0;
+  width: 280px;       /* Or keep as before */
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
 }

@@ -49,8 +49,8 @@
       <!-- Connected Users -->
       <div class="panel-section">
         <h3>Connected Users ({{ connectedUsers.length }})</h3>
-        <ul class="user-list">
-          <li *ngFor="let user of connectedUsers" class="user-item">
+        <ul class="user-grid">
+          <li *ngFor="let user of connectedUsers | slice:0:20" class="user-item">
           <span class="user-avatar" [style.background-color]="user.color">
             {{ user.initials }}
             <span
@@ -61,23 +61,21 @@
                 'active': user.status === 'active'
               }"></span>
           </span>
-            <span class="user-name">{{ user.name }}</span>
           </li>
         </ul>
       </div>
 
-      <!-- Enhanced Events Panel -->
+      <!-- Activity Feed -->
       <div class="panel-section">
         <h3>Activity Feed</h3>
         <ul class="event-list">
           <li *ngFor="let event of recentEvents"
               class="event-card"
               [ngClass]="{ 'fade': event.fading }">
-      <span class="event-badge" [ngClass]="event.userEventType.toLowerCase()">
-        <i *ngIf="event.userEventType==='USER_JOINED'" class="fas fa-sign-in-alt"></i>
-        <i *ngIf="event.userEventType==='USER_LEFT'" class="fas fa-sign-out-alt"></i>
-
-      </span>
+          <span class="event-badge" [ngClass]="event.userEventType.toLowerCase()">
+            <i *ngIf="event.userEventType==='USER_JOINED'" class="fas fa-sign-in-alt"></i>
+            <i *ngIf="event.userEventType==='USER_LEFT'" class="fas fa-sign-out-alt"></i>
+          </span>
             <div class="event-content">
               <p class="event-desc">{{ event.description }}</p>
               <span class="event-time">{{ event.timestamp | date:'shortTime' }}</span>
@@ -86,10 +84,8 @@
         </ul>
       </div>
 
-
     </div>
   </div>
-
 
 
 
