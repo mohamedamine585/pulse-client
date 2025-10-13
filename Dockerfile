@@ -1,49 +1,33 @@
 # =========================================
 # Stage 1: Build the Angular Application
 # =========================================
-# =========================================
-# Stage 1: Build the Angular Application
-# =========================================
-ARG NODE_VERSION=24.7.0-alpine
-ARG NGINX_VERSION=alpine3.22
+ARG NODE_VERSION=18-alpine
+ARG NGINX_VERSION=alpine
 
-# Use a lightweight Node.js image for building (customizable via ARG)
 FROM node:${NODE_VERSION} AS builder
 
-# Set the working directory inside the container
 WORKDIR /app
-
-# Copy package-related files first to leverage Docker's caching mechanism
 COPY package.json package-lock.json ./
-
-# Install project dependencies using npm ci (ensures a clean, reproducible install)
 RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
-
-# Copy the rest of the application source code into the container
-COPY .. .
-
-# Build the Angular application
+COPY . .
 RUN npm run build
 
 # =========================================
 # Stage 2: Prepare Nginx to Serve Static Files
 # =========================================
 
-FROM nginxinc/nginx-unprivileged:${NGINX_VERSION} AS runner
-
-# Use a built-in non-root user for security best practices
-USER nginx
+FROM nginx:${NGINX_VERSION} AS runner
 
 # Copy custom Nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy the static build output from the build stage to Nginx's default HTML serving directory
-COPY --chown=nginx:nginx --from=builder /app/dist/*/browser /usr/share/nginx/html
+# Copy the static build output
+COPY --from=builder /app/dist/*/browser /usr/share/nginx/html
 
-# Expose port 8080 to allow HTTP traffic
-# Note: The default NGINX container now listens on port 8080 instead of 80
+# Create nginx pid directory and set proper permissions
+RUN mkdir -p /var/cache/nginx /var/run && \
+    chown -R nginx:nginx /var/cache/nginx /var/run
+
 EXPOSE 80
 
-# Start Nginx directly with custom config
-ENTRYPOINT ["nginx", "-c", "/etc/nginx/nginx.conf"]
-CMD ["-g", "daemon off;"]
+CMD ["nginx", "-g", "daemon off;"]
