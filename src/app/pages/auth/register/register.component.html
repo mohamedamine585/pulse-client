@@ -1,0 +1,84 @@
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="app-logo">
+      <h1>Pulse</h1>
+      <p>Create your account</p>
+    </div>
+    
+    <form (ngSubmit)="register()">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input 
+          id="username"
+          type="text"
+          [(ngModel)]="user.username"
+          name="username"
+          required
+          placeholder="Enter your username"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input 
+          id="email"
+          type="email"
+          [(ngModel)]="user.email"
+          name="email"
+          required
+          placeholder="Enter your email"
+          [class.invalid]="user.email && !validateEmail(user.email)"
+        />
+        <small class="error-message" *ngIf="user.email && !validateEmail(user.email)">
+          Please enter a valid email address
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          [(ngModel)]="user.password"
+          name="password"
+          required
+          placeholder="Enter your password"
+          [class.invalid]="user.password && !validatePassword(user.password)"
+        />
+        <small class="error-message" *ngIf="user.password && !validatePassword(user.password)">
+          Password must be at least 8 characters long
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label for="confirmPassword">Confirm Password</label>
+        <input
+          id="confirmPassword"
+          type="password"
+          [(ngModel)]="user.confirmPassword"
+          name="confirmPassword"
+          required
+          placeholder="Confirm your password"
+          [class.invalid]="user.confirmPassword && user.password !== user.confirmPassword"
+        />
+        <small class="error-message" *ngIf="user.confirmPassword && user.password !== user.confirmPassword">
+          Passwords do not match
+        </small>
+      </div>
+
+      <button type="submit" class="btn-primary" [disabled]="loading">
+        <mat-spinner *ngIf="loading" diameter="20"></mat-spinner>
+        <span *ngIf="!loading">Register</span>
+      </button>
+
+      <div *ngIf="errorMessage" class="error-message">
+        {{ errorMessage }}
+      </div>
+    </form>
+
+    <div class="auth-links">
+      Already have an account? 
+      <a (click)="goToLogin()" style="cursor: pointer;">Login here</a>
+    </div>
+  </div>
+</div>

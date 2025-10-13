@@ -1,0 +1,310 @@
+.dialog-container {
+  padding: 20px;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+}
+
+.dialog-title {
+  margin-bottom: 20px;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #2d3748;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 10px;
+}
+
+.dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.privacy-hint {
+  font-size: 0.75rem;
+  color: #718096;
+}
+
+mat-dialog-actions {
+  padding-top: 15px;
+  background: #f8f9fa;
+  border-top: 1px solid #e2e8f0;
+}
+
+.cancel-btn {
+  background: #f1f5f9;
+}
+
+.cancel-btn:hover {
+  background: #e2e8f0;
+}
+
+.create-btn {
+  background: linear-gradient(135deg, #3182ce, #2c5282);
+  color: #fff;
+}
+
+.create-btn:hover {
+  background: linear-gradient(135deg, #4299e1, #2b6cb0);
+  transform: translateY(-1px);
+}
+
+.create-btn:disabled {
+  background: #e2e8f0;
+  color: #a0aec0;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Force text visibility for Material components */
+:host ::ng-deep .mat-form-field {
+  color: #2d3748; /* Base text color */
+}
+
+/* Ensure the input text is visible */
+:host ::ng-deep .mat-input-element {
+  color: #2d3748 !important; /* Use a dark color */
+  caret-color: #2d3748 !important; /* Cursor color */
+}
+
+/* Style form field label */
+:host ::ng-deep .mat-form-field-label {
+  color: #718096 !important; /* Label color */
+}
+
+:host ::ng-deep .mat-form-field .mat-form-field-label {
+  color: #718096 !important;
+}
+
+:host ::ng-deep .mat-form-field-appearance-outline .mat-form-field-outline-thick {
+  color: #e2e8f0;
+}
+
+:host ::ng-deep .mat-form-field.mat-focused .mat-form-field-label {
+  color: #3182ce !important; /* Focused label */
+}
+
+/* For error messages */
+:host ::ng-deep .mat-error {
+  color: #e53e3e !important; /* Error text */
+}
+
+:host ::ng-deep .mat-checkbox-label {
+  color: #2d3748 !important; /* Checkbox text */
+}
+
+:host ::ng-deep .mat-form-field-flex {
+  background: #ffffff; /* Ensure input background isn’t transparent */
+}
+
+:host ::ng-deep .mat-form-field-outline {
+  background: #f8f9fa; /* Subtle background for outline */
+  border-radius: 6px;
+  color: #e2e8f0; /* Outline border */
+}
+
+:host ::ng-deep .mat-form-field-appearance-outline.mat-focused .mat-form-field-outline-thick {
+  color: #3182ce !important; /* Focused outline */
+}
+
+/* Prevent transparency from parent styles */
+:host {
+  color: #2d3748; /* Default text color for component */
+}
+
+/* Optional: Override background colors if needed */
+.page-container {
+  background: #ffffff;
+  color: #2d3748;
+}
+
+/* Existing styles */
+.page-container {
+  max-width: 600px;
+  margin: 40px auto;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+}
+
+.page-title {
+  text-align: center;
+  margin-bottom: 20px;
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #2d3748;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 10px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.privacy-hint {
+  font-size: 0.75rem;
+  color: #718096;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 20px;
+}
+
+.cancel-btn {
+  background: #f1f5f9;
+}
+
+.cancel-btn:hover {
+  background: #e2e8f0;
+}
+
+.create-btn {
+  background: linear-gradient(135deg, #3182ce, #2c5282);
+  color: #fff;
+}
+
+.create-btn:hover {
+  background: linear-gradient(135deg, #4299e1, #2b6cb0);
+  transform: translateY(-1px);
+}
+
+.create-btn:disabled {
+  background: #e2e8f0;
+  color: #a0aec0;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Media query */
+@media (max-width: 480px) {
+  .dialog-container {
+    min-width: auto;
+    padding: 15px;
+  }
+  mat-dialog-actions {
+    margin: 15px -15px -15px;
+    padding: 10px 15px;
+  }
+}
+
+/* Container styles */
+.canvas-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: #f7f7f7; /* Light background for contrast */
+  padding: 20px;
+}
+
+/* Card wrapper */
+.canvas-card {
+  max-width: 400px;
+  width: 100%;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Logo and header */
+.canvas-logo {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.canvas-logo h1 {
+  font-size: 2rem;
+  margin: 0;
+  color: #2d3748;
+}
+.canvas-logo p {
+  font-size: 1.1rem;
+  margin: 5px 0 0;
+  color: #718096;
+}
+
+/* Form groups */
+.canvas-form-group {
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
+  flex-direction: column;
+}
+.canvas-form-group0 {
+  width: 60%;
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
+  flex-direction: row;
+}
+.canvas-form-group label {
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #2d3748;
+}
+.canvas-form-group input[type="text"] {
+  padding: 8px;
+  border: 1px solid #e0e4e8;
+  border-radius: 4px;
+  font-size: 1rem;
+  color: #2d3748;
+  background: #fff;
+}
+
+/* Button styles */
+.canvas-btn-primary {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  background: linear-gradient(135deg, #3182ce, #2c5282);
+  color: #fff;
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+.canvas-btn-primary:hover {
+  background: linear-gradient(135deg, #4299e1, #2b6cb0);
+  transform: translateY(-2px);
+}
+
+/* Error message */
+.canvas-error {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: #e53e3e;
+}
+
+/* Auxiliary links */
+.canvas-links {
+  text-align: center;
+  margin-top: 15px;
+}
+.canvas-links a {
+  text-decoration: none;
+  color: #3182ce;
+  font-size: 0.95rem;
+}
+
+/* Angular Material overrides for input and labels */
+:host ::ng-deep .mat-form-field .mat-input-element {
+  color: #2d3748 !important;
+  background: #fff !important;
+}
+:host ::ng-deep .mat-form-field-label {
+  color: #718096 !important;
+}

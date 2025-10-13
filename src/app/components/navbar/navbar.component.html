@@ -1,0 +1,44 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4">
+    <a class="navbar-brand" routerLink="/">Pulse</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <!-- User Dropdown -->
+        <li class="nav-item d-flex align-items-center" *ngIf="this.authService.isLoggedInSubject | async"> 
+          <div class="dropdown open custom-dropdown">
+            <button 
+              class="btn dropdown-toggle text-white" 
+              type="button" 
+              id="userDropdown" 
+              data-bs-toggle="dropdown" 
+              aria-expanded="false">
+              <i class="fas fa-user me-2"></i>
+              <span class="username">{{ username }}</span>
+            </button>
+          
+            <ul class="dropdown-menu dropdown-menu-end dark-dropdown" aria-labelledby="userDropdown">
+              <li>
+                <a class="dropdown-item d-flex align-items-center" routerLink="/profile">
+                  <i class="fas fa-id-badge me-2"></i> Profile
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item d-flex align-items-center" routerLink="/settings">
+                  <i class="fas fa-cog me-2"></i> Settings
+                </a>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <button class="dropdown-item d-flex align-items-center text-danger" (click)="quitApp()">
+                  <i class="fas fa-sign-out-alt me-2"></i> Logout
+                </button>
+              </li>
+            </ul>
+          </div>
+          
+        </li>
+      </ul>
+    </div>
+</nav>
