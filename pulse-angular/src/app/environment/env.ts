@@ -1,7 +1,7 @@
 export const env = {
     production: false,
-    authUrl: 'http://localhost:3000/auth',
-    liveCanvas: 'ws://localhost:8083/live/canvas',
-    liveEvents: 'ws://localhost:8083/live/events',
-    apiUrl: 'http://localhost:8083/live/canvas',
+    authUrl: 'http://pulse/auth/api',
+    liveCanvas: 'ws://pulse/pulse/api/live/canvas',
+    liveEvents: 'ws://pulse/pulse/api/live/events',
+    apiUrl: 'http://pulse/pulse/api/live/canvas',
   };

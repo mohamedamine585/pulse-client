@@ -31,7 +31,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   trendingCanvases: Canvas[] = [
     {
       id: 1,
-      image: 'http://localhost:8083/live/renderer/canvas/previews/324.png',
+      image: 'http://pulse/pulse/api/live/renderer/canvas/previews/324.png',
       title: 'Modern UI Design',
       description: 'Explore modern UI principles and design trends.',
       creator: 'Alice',
