@@ -18,15 +18,19 @@ RUN npm run build
 
 FROM nginx:${NGINX_VERSION} AS runner
 
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
+
 # Copy custom Nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy the static build output
 COPY --from=builder /app/dist/*/browser /usr/share/nginx/html
 
-# Create nginx pid directory and set proper permissions
-RUN mkdir -p /var/cache/nginx /var/run && \
-    chown -R nginx:nginx /var/cache/nginx /var/run
+# Create necessary directories and set proper permissions
+RUN mkdir -p /var/run/nginx && \
+    chown -R nginx:nginx /var/run/nginx /var/cache/nginx && \
+    chmod -R 755 /var/run/nginx
 
 EXPOSE 80
 
