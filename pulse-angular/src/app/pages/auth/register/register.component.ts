@@ -66,7 +66,7 @@ export class RegisterComponent {
       next: (response) => {
         this.loading = false;
         this.toastr.success('Registration successful! Please check your email to verify your account.', 'Success');
-        this.router.navigate(['/validate-account']);
+        this.router.navigate(['login']);
       },
       error: (error) => {
         this.loading = false;

@@ -30,7 +30,6 @@ export class LoginComponent {
       next: (response) => {
         this.loading = false;
         if (response.access_token) {
-          this.authService.saveToken(response.access_token);
           this.toastr.success('Login successful!', 'Success');
           this.router.navigate(['/home']);
         }

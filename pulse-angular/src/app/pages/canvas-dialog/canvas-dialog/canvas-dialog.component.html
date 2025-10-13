@@ -1,0 +1,43 @@
+
+  <div class="canvas-card">
+    <div class="canvas-logo">
+      <h1>Pulse</h1>
+      <p>Create New Canvas</p>
+    </div>
+    
+    <form (ngSubmit)="startDrawing()">
+      <div class="canvas-form-group">
+        <label for="canvasName">Canvas Name</label>
+        <input 
+          id="canvasName"
+          type="text"
+          [(ngModel)]="canvas.name"
+          name="canvasName"
+          required
+          placeholder="Enter canvas name"
+          aria-label="Canvas Name"
+        />
+      </div>
+
+      <div class="canvas-form-group" style="display: flex; flex-direction: row; align-items: center; gap: 10px;">
+        <label for="isPublic" style="margin: 0;">Make Canvas Public</label>
+        <mat-slide-toggle 
+          id="isPublic" 
+          [(ngModel)]="canvas.isPublic" 
+          name="isPublic"
+          aria-label="Make Canvas Public"
+          ngDefaultControl>
+        </mat-slide-toggle>
+      </div>
+
+      <button type="submit" class="canvas-btn-primary">Create Canvas</button>
+      
+      <div *ngIf="errorMessage" class="canvas-error">
+        {{ errorMessage }}
+      </div>
+    </form>
+
+    <div class="canvas-links">
+      <a (click)="cancel()" style="cursor: pointer; text-decoration: underline;">Cancel</a>
+    </div>
+  </div>
