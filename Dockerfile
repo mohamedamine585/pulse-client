@@ -18,9 +18,6 @@ RUN npm run build
 
 FROM nginx:${NGINX_VERSION} AS runner
 
-# Remove default nginx config
-RUN rm /etc/nginx/conf.d/default.conf
-
 # Copy custom Nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
