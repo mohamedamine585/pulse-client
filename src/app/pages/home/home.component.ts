@@ -1,22 +1,12 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
-import { CanvasDialogComponent } from '../canvas-dialog/canvas-dialog/canvas-dialog.component';
+import { interval, Subscription, of } from 'rxjs';
+import { switchMap, catchError } from 'rxjs/operators';
+import { CanvasService } from '../../services/canvas.service';
 import { AuthService } from '../../services/auth.service';
-import { interval, Subscription } from 'rxjs';
-
-interface Canvas {
-  id: number;
-  image: string;
-  title: string;
-  description: string;
-  creator?: string;
-  participants: number;
-  status: 'Active' | 'Draft' | 'Closed';
-  meta?: string;
-  actionText?: string;
-  live?: boolean;
-}
+import { CanvasDialogComponent } from '../canvas-dialog/canvas-dialog/canvas-dialog.component';
+import { Canvas } from '../../models/canvas';
 
 @Component({
   selector: 'app-home',
@@ -24,102 +14,175 @@ interface Canvas {
   styleUrls: ['./home.component.css']
 })
 export class HomeComponent implements OnInit, OnDestroy {
-  searchQuery: string = '';
-  dropdownOpen: boolean = false;
-  private refreshSub!: Subscription;
+  searchQuery = '';
+  dropdownOpen = false;
+  canvases: Canvas[] = [];
 
-  trendingCanvases: Canvas[] = [
-    {
-      id: 1,
-      image: 'http://pulse/pulse/api/live/renderer/canvas/previews/324.png',
-      title: 'Modern UI Design',
-      description: 'Explore modern UI principles and design trends.',
-      creator: 'Alice',
-      participants: 12,
-      status: 'Active',
-      live: true
-    },
-    {
-      id: 2,
-      image: 'https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2021%2F10%2Fbored-ape-yacht-club-nft-3-4-million-record-sothebys-metaverse-0.jpg?w=960&cbr=1&q=90&fit=max',
-      title: 'Responsive Web Apps',
-      description: 'Build and discuss responsive applications.',
-      creator: 'Bob',
-      participants: 8,
-      status: 'Draft',
-      live: false
-    }
-  ];
+  private refreshSub?: Subscription;
+  private participantsSubs = new Map<number, Subscription>(); // active WS feeds
 
-  myCollection: Canvas[] = [
-    {
-      id: 3,
-      image: 'https://www.coexya.eu/app/uploads/2022/04/nft-singes.webp',
-      title: 'Angular Best Practices',
-      description: 'A curated guide for Angular developers.',
-      participants: 5,
-      status: 'Active',
-      meta: 'Last edited 2 days ago',
-      actionText: 'Open',
-      live: true
-    },
-    {
-      id: 4,
-      image: 'https://placehold.co/600x400',
-      title: 'Blockchain Workshop',
-      description: 'Hands-on blockchain concepts and coding.',
-      participants: 10,
-      status: 'Closed',
-      meta: 'Completed 1 month ago',
-      actionText: 'View',
-      live: false
-    }
-  ];
+  constructor(
+    private router: Router,
+    private dialog: MatDialog,
+    private authService: AuthService,
+    private canvasService: CanvasService
+  ) {}
 
-  constructor(private router: Router, private dialog: MatDialog, private authService: AuthService) {}
+  ngOnInit(): void {
+    this.loadCanvases();
 
-  ngOnInit() {
-    // Refresh images every 5 seconds
-    this.refreshSub = interval(5000).subscribe(() => this.refreshImages());
+    // 🔁 Auto-refresh canvases every 10s
+    this.refreshSub = interval(10000)
+      .pipe(
+        switchMap(() => this.canvasService.getAllCanvases()),
+        catchError(err => {
+          console.error('Error refreshing canvases:', err);
+          return of({ content: this.canvases });
+        })
+      )
+      .subscribe(response => this.updateCanvases(response.content || []));
   }
 
-  ngOnDestroy() {
-    if (this.refreshSub) {
-      this.refreshSub.unsubscribe();
-    }
+  ngOnDestroy(): void {
+    // 🧹 Cleanup all subscriptions & sockets
+    this.refreshSub?.unsubscribe();
+
+    this.participantsSubs.forEach(sub => sub.unsubscribe());
+    this.participantsSubs.clear();
+
+    this.canvasService.disconnectAllParticipantsFeeds(); // ✅ Ensures WS cleanup
   }
 
-  private refreshImages() {
-    const timestamp = new Date().getTime();
-
-    this.trendingCanvases = this.trendingCanvases.map(c => ({
-      ...c,
-      image: this.appendTimestamp(c.image, timestamp)
-    }));
-
-    this.myCollection = this.myCollection.map(c => ({
-      ...c,
-      image: this.appendTimestamp(c.image, timestamp)
-    }));
-  }
-
-  private appendTimestamp(url: string, timestamp: number): string {
-    // Add ?t=12345 or &t=12345 to force reload
-    return url.includes('?') ? `${url}&t=${timestamp}` : `${url}?t=${timestamp}`;
-  }
-
-  // ... all other methods stay the same ...
-  onSearch() { console.log('Searching for:', this.searchQuery); }
-  joinCanvas(canvas: Canvas) { this.router.navigate(['canvas'], { queryParams: { canvasId: canvas.id } }); }
-  createCanvas() {
-    const dialogRef = this.dialog.open(CanvasDialogComponent, { width: '500px', maxWidth: '90%', height: 'auto', maxHeight: '90%', data: {} });
-    dialogRef.afterClosed().subscribe((result: Canvas | null) => {
-      if (result) this.router.navigate(['canvas'], { queryParams: { canvasId: result.id } });
+  /** Load all canvases initially */
+  private loadCanvases(): void {
+    this.canvasService.getAllCanvases().subscribe({
+      next: response => this.updateCanvases(response.content || []),
+      error: err => console.error('Failed to load canvases:', err)
     });
   }
-  openCanvas(canvas: Canvas) { this.router.navigate(['/canvas'], { queryParams: { title: canvas.title } }); }
-  toggleDropdown() { this.dropdownOpen = !this.dropdownOpen; }
-  goToSettings() { this.router.navigate(['settings']); }
-  quitApp() { this.logout(); }
-  logout() { this.authService.logout(); this.router.navigate(['login']); }
+
+  /** Merge & update canvas list */
+  private updateCanvases(serverCanvases: Canvas[]): void {
+    const timestamp = Date.now();
+
+    serverCanvases.forEach(serverCanvas => {
+      const existing = this.canvases.find(c => c.id === serverCanvas.id);
+      const imageUrl = this.appendTimestamp(
+        `http://localhost/pulse/api/live/renderer/canvas/previews/${serverCanvas.id}.png`,
+        timestamp
+      );
+
+      if (existing) {
+        existing.image = imageUrl;
+        existing.status = serverCanvas.status || 'Active';
+      } else {
+        const newCanvas: Canvas = {
+          ...serverCanvas,
+          image: imageUrl,
+          actionText: 'Open Canvas',
+          status: serverCanvas.status || 'Active',
+          participants: 0
+        };
+        this.canvases.push(newCanvas);
+      }
+
+      // ✅ Connect to participant count feed if not already connected
+      if (serverCanvas.id && !this.participantsSubs.has(serverCanvas.id)) {
+        const sub = this.canvasService
+          .connectToParticipantsCountFeed(serverCanvas.id)
+          .subscribe(count => {
+            const found = this.canvases.find(c => c.id === serverCanvas.id);
+            if (found) found.participants = count;
+          });
+        this.participantsSubs.set(serverCanvas.id, sub);
+      }
+    });
+
+    // 🧹 Remove canvases no longer on server
+    const activeIds = serverCanvases.map(c => c.id);
+    this.canvases = this.canvases.filter(c => activeIds.includes(c.id!));
+
+    // 🧹 Disconnect feeds for removed canvases
+    this.participantsSubs.forEach((sub, id) => {
+      if (!activeIds.includes(id)) {
+        sub.unsubscribe();
+        this.participantsSubs.delete(id);
+        this.canvasService.disconnectParticipantsFeed(id);
+      }
+    });
+  }
+
+  /** Prevent browser caching of preview images */
+  private appendTimestamp(url: string, timestamp: number): string {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}t=${timestamp}`;
+  }
+
+  /** Create a new canvas */
+  createCanvas(): void {
+    const dialogRef = this.dialog.open(CanvasDialogComponent, {
+      width: '500px',
+      maxWidth: '90%'
+    });
+
+    dialogRef.afterClosed().subscribe((result: Canvas | null) => {
+      if (!result) return;
+
+      this.canvasService.createCanvas(result).subscribe({
+        next: created => {
+          const imageUrl = this.appendTimestamp(
+            `http://localhost/pulse/api/live/renderer/canvas/previews/${created.id}.png`,
+            Date.now()
+          );
+
+          const newCanvas: Canvas = {
+            ...created,
+            image: imageUrl,
+            actionText: 'Open Canvas',
+            status: created.status || 'Active',
+            participants: 0
+          };
+          this.canvases.unshift(newCanvas);
+
+          // Connect immediately to its participants feed
+          if (created.id) {
+            const sub = this.canvasService
+              .connectToParticipantsCountFeed(created.id)
+              .subscribe(count => {
+                newCanvas.participants = count;
+              });
+            this.participantsSubs.set(created.id, sub);
+          }
+
+          this.router.navigate(['canvas'], { queryParams: { canvasId: created.id } });
+        },
+        error: err => console.error('Error creating canvas:', err)
+      });
+    });
+  }
+
+  /** Open existing canvas */
+  openCanvas(canvas: Canvas): void {
+    this.router.navigate(['/canvas'], { queryParams: { canvasId: canvas.id } });
+  }
+
+  /** Logout user */
+  logout(): void {
+    this.authService.logout();
+    this.router.navigate(['login']);
+  }
+
+  /** Toggle user dropdown */
+  toggleDropdown(): void {
+    this.dropdownOpen = !this.dropdownOpen;
+  }
+
+  /** Filter canvases by name */
+  onSearch(): void {
+    const query = this.searchQuery.trim().toLowerCase();
+    if (!query) return;
+    this.canvases = this.canvases.filter(c =>
+      c.name.toLowerCase().includes(query)
+    );
+  }
 }

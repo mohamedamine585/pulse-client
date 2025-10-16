@@ -3,10 +3,10 @@ import { Subject, Observable } from 'rxjs';
 import { env } from '../environment/env';
 import { ToastrService } from 'ngx-toastr';
 import { AuthService } from './auth.service';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Canvas } from '../models/canvas';
 
-
-export interface ConnectedUser{
+export interface ConnectedUser {
   userId: number;
   username: string;
   connectedAt: number;
@@ -17,173 +17,210 @@ export interface ConnectedUser{
 }
 
 enum EventType {
-  USER_EVENT = "USER_EVENT",
+  USER_EVENT = 'USER_EVENT',
 }
 
 export enum UserEventType {
-  USER_JOINED = "USER_JOINED",
-  USER_LEFT = "USER_LEFT",
+  USER_JOINED = 'USER_JOINED',
+  USER_LEFT = 'USER_LEFT',
 }
 
 export interface Event {
   eventType: EventType;
   timestamp?: number;
   canvasId?: number;
-  fading?: boolean; // add fading flag for UI
-  description?: string; // optional description for UI
+  fading?: boolean;
+  description?: string;
 }
 
 export interface UserEvent extends Event {
   eventType: EventType.USER_EVENT;
   userId: number;
   userEventType: UserEventType;
-
 }
 
 interface CanvasMessage {
   pixelsPositions: number[];
   pixelsEdits: number[];
-  lineWidth : number;
+  lineWidth: number;
 }
 
-
-
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class CanvasService {
   private socket: WebSocket | null = null;
+  private sessionId: any;
+
   private messageSubject = new Subject<CanvasMessage>();
-  private sessionId : any ;
   private eventFeedSocket: WebSocket | null = null;
   private eventFeedSubject = new Subject<UserEvent>();
-  private connectedUsersSocket : WebSocket | null = null;
+
+  private connectedUsersSocket: WebSocket | null = null;
   private connectedUsersSubject = new Subject<ConnectedUser>();
 
-private toastOptions = {
-  closeButton: true,
-  progressBar: true,
-  timeOut: 3000, // Auto disappear after 3 seconds
-  extendedTimeOut: 1000, // Shorter time when hovered
-};
+  // ✅ persistent participants feed map
+  private countParticipantsSubjects = new Map<number, Subject<number>>();
+  private countParticipantsSockets = new Map<number, WebSocket>();
 
+  private toastOptions = {
+    closeButton: true,
+    progressBar: true,
+    timeOut: 3000,
+    extendedTimeOut: 1000,
+  };
 
+  constructor(
+    private toastr: ToastrService,
+    private authService: AuthService,
+    private http: HttpClient
+  ) {}
 
-  constructor(private toastr: ToastrService,private authservice : AuthService, private http: HttpClient) { }
+  // ============================================================
+  // 🧩 LIVE CANVAS CONNECTION
+  // ============================================================
 
   connect(canvasId: number): void {
+    if (!canvasId) return;
 
-    if (this.socket) {
-      this.socket.close();
-    }
-    if(!canvasId)
-      return;
+    if (this.socket) this.socket.close();
+
     const wsUrl = new URL(`${env.liveCanvas}`);
     wsUrl.searchParams.append('canvasId', canvasId.toString());
-    wsUrl.searchParams.append('token', this.authservice.getToken() || '');
+    wsUrl.searchParams.append('token', this.authService.getToken() || '');
 
-    try{
+    try {
       this.socket = new WebSocket(wsUrl.toString());
-
-
 
       this.socket.onmessage = (event) => {
         try {
-
           const data = JSON.parse(event.data);
-          if(data.messageType == "HELLO"){
-             this.sessionId = data.sessionId;
-          }
-          else if( data.messageType == "CANVAS_UPDATE" && data.sessionId != this.sessionId){
-            this.messageSubject.next({
-              pixelsEdits : data.values,
-              pixelsPositions : data.positions,
-              lineWidth: data.lineWidth
-            })
-          }
-          else if( data.messageType == "NEW_USER"  && data.sessionId == this.sessionId){
-            this.messageSubject.next({
-              pixelsEdits : data.values,
-              pixelsPositions : data.positions,
-              lineWidth: data.lineWidth
-            })
-          }
-          else if(data.messageType == "NEW_USER"  && data.sessionId != this.sessionId){
-            this.messageSubject.next({
-              pixelsEdits : data.values,
-              pixelsPositions : data.positions,
-              lineWidth: data.lineWidth
-            })
-          }
 
-        } catch (error) {
-          this.toastr.warning('Invalid canvas update received', 'Warning', this.toastOptions);
+          if (data.messageType === 'HELLO') {
+            this.sessionId = data.sessionId;
+          }
+          else if (data.messageType === 'NEW_USER'){
+            if(data){
+              this.messageSubject.next({
+                pixelsEdits: data.values,
+                pixelsPositions: data.positions,
+                lineWidth: data.lineWidth,
+              });
+
+
+            }
+
+          }
+          else if (
+            data.messageType === 'CANVAS_UPDATE' &&
+            data.sessionId !== this.sessionId
+          ) {
+              if(data.sessionId !== this.sessionId && data){
+                this.messageSubject.next({
+                  pixelsEdits: data.values,
+                  pixelsPositions: data.positions,
+                  lineWidth: data.lineWidth,
+                });
+
+              }
+
+          }
+        } catch {
+          this.toastr.warning(
+            'Invalid canvas update received',
+            'Warning',
+            this.toastOptions
+          );
         }
       };
 
-      this.socket.onerror = (error) => {
+      this.socket.onerror = () => {
         this.toastr.error('Server connection error', 'Error', this.toastOptions);
       };
 
-      this.socket.onclose = (reason : CloseEvent) => {
-        if(reason.code == 1000)
-          return;
-        this.toastr.warning('Server connection closed', 'Disconnected', this.toastOptions);
+      this.socket.onclose = (reason: CloseEvent) => {
+        if (reason.code !== 1000)
+          this.toastr.warning(
+            'Server connection closed',
+            'Disconnected',
+            this.toastOptions
+          );
       };
-    }catch(e){
+    } catch (e) {
+      console.error(e);
     }
-
-
-
   }
 
-  connectToEventFeed(canvasId:number): void {
-    if (this.eventFeedSocket) {
-      this.eventFeedSocket.close();
+  sendPixelUpdates(pixelsPositions: number[], pixelsEdits: number[]): void {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      try {
+        const sessionId = this.sessionId;
+        pixelsEdits = pixelsEdits.map((value) => value >>> 0);
+
+        this.socket.send(
+          JSON.stringify({
+            pixelsPositions,
+            pixelsEdits,
+            sessionId,
+          })
+        );
+      } catch (e) {
+        console.error(e);
+      }
     }
+  }
+
+  getMessages(): Observable<CanvasMessage> {
+    return this.messageSubject.asObservable();
+  }
+
+  // ============================================================
+  // 🧩 USER EVENT FEED
+  // ============================================================
+
+  connectToEventFeed(canvasId: number): void {
+    if (this.eventFeedSocket) this.eventFeedSocket.close();
 
     const wsUrl = new URL(`${env.liveEvents}`);
     wsUrl.searchParams.append('canvasId', canvasId.toString());
 
-    try{
+    try {
       this.eventFeedSocket = new WebSocket(wsUrl.toString());
-
-
 
       this.eventFeedSocket.onmessage = (event) => {
         try {
-
           const data = JSON.parse(event.data);
-          if(data.eventType == EventType.USER_EVENT){
-            let userEvent = data as UserEvent;
-            this.eventFeedSubject.next(userEvent);
+          if (data.eventType === EventType.USER_EVENT) {
+            this.eventFeedSubject.next(data as UserEvent);
           }
-
-        } catch (error) {
-          console.log(error)
-          this.toastr.warning('Invalid event received', 'Warning', this.toastOptions);
+        } catch {
+          this.toastr.warning('Invalid event received', 'Warning');
         }
       };
 
-      this.eventFeedSocket.onerror = (error) => {
-        this.toastr.error('Event feed connection error', 'Error', this.toastOptions);
+      this.eventFeedSocket.onerror = () => {
+        this.toastr.error('Event feed connection error', 'Error');
       };
 
-      this.eventFeedSocket.onclose = (reason : CloseEvent) => {
-        if(reason.code == 1000)
-          return;
-        this.toastr.warning('Event feed connection closed', 'Disconnected', this.toastOptions);
+      this.eventFeedSocket.onclose = (reason: CloseEvent) => {
+        if (reason.code !== 1000)
+          this.toastr.warning('Event feed connection closed', 'Disconnected');
       };
-    }catch(e){
-        console.log(e);
+    } catch (e) {
+      console.error(e);
     }
   }
 
+  getEventFeed(): Observable<UserEvent> {
+    return this.eventFeedSubject.asObservable();
+  }
 
-  connectToConnectedUsersFeed(canvasId:number): void {
-    if (this.connectedUsersSocket) {
-      this.connectedUsersSocket.close();
-    }
+  // ============================================================
+  // 🧩 CONNECTED USERS FEED
+  // ============================================================
+
+  connectToConnectedUsersFeed(canvasId: number): void {
+    if (this.connectedUsersSocket) this.connectedUsersSocket.close();
 
     const wsUrl = new URL(`${env.liveEvents}/connected-users`);
     wsUrl.searchParams.append('canvasId', canvasId.toString());
@@ -192,82 +229,126 @@ private toastOptions = {
       this.connectedUsersSocket = new WebSocket(wsUrl.toString());
       this.connectedUsersSocket.onmessage = (event) => {
         try {
-
-            const data = JSON.parse(event.data);
-            if(data != undefined){
-              this.connectedUsersSubject.next(data);
-
-            }
-
-
-        } catch (error) {
-          console.log(error)
-          this.toastr.warning('Invalid connected users update received', 'Warning', this.toastOptions);
+          const data = JSON.parse(event.data);
+          this.connectedUsersSubject.next(data);
+        } catch {
+          this.toastr.warning('Invalid connected users update', 'Warning');
         }
       };
-      this.connectedUsersSocket.onerror = (error) => {
-        this.toastr.error('Connected users feed connection error', 'Error', this.toastOptions);
-      };
-      this.connectedUsersSocket.onclose = (reason: CloseEvent) => {
-        if (reason.code == 1000)
-          return;
-        this.toastr.warning('Connected users feed connection closed', 'Disconnected', this.toastOptions);
-      };
-
+    } catch (e) {
+      console.error(e);
     }
-    catch (e) {
-      console.log(e);
-    }
-  }
-
-  sendPixelUpdates(pixelsPositions: number[], pixelsEdits: number[]): void {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      try{
-
-        const sessionId = this.sessionId;
-
-        pixelsEdits = pixelsEdits.map(value => value >>> 0);
-        this.socket.send(JSON.stringify({
-          pixelsPositions,
-          pixelsEdits,
-          sessionId
-        }));
-
-      }
-
-      catch(e){
-       console.log(e);
-      }
-
-  }
-  }
-  getMessages(): Observable<CanvasMessage> {
-    return this.messageSubject.asObservable();
-  }
-
-  getEventFeed(): Observable<UserEvent> {
-    return this.eventFeedSubject.asObservable();
   }
 
   getConnectedUsersFeed(): Observable<ConnectedUser> {
     return this.connectedUsersSubject.asObservable();
   }
-  disconnect(manual : boolean): void {
-    if (this.socket) {
-      this.socket.close(manual ? 1000 : 3000); // 1000 is a normal closure
-      this.socket = null;
+
+  // ============================================================
+  // 🧩 PARTICIPANTS COUNT FEED (Persistent)
+  // ============================================================
+
+  connectToParticipantsCountFeed(canvasId: number): Observable<number> {
+    // ✅ Return existing feed if already connected
+    if (this.countParticipantsSubjects.has(canvasId)) {
+      return this.countParticipantsSubjects.get(canvasId)!.asObservable();
     }
+
+    const subject = new Subject<number>();
+    this.countParticipantsSubjects.set(canvasId, subject);
+
+    const wsUrl = new URL(`${env.liveEvents}/connected-users/count`);
+    wsUrl.searchParams.append('canvasId', canvasId.toString());
+
+    try {
+      const socket = new WebSocket(wsUrl.toString());
+      this.countParticipantsSockets.set(canvasId, socket);
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data && typeof data.count === 'number') {
+            subject.next(data.count);
+          }
+        } catch {
+          this.toastr.warning('Invalid count update', 'Warning');
+        }
+      };
+
+      socket.onclose = (reason: CloseEvent) => {
+        this.countParticipantsSockets.delete(canvasId);
+        this.countParticipantsSubjects.delete(canvasId);
+        subject.complete();
+
+        if (reason.code !== 1000) {
+          console.warn(`[WS] Count feed closed unexpectedly for ${canvasId}`);
+        }
+      };
+    } catch (e) {
+      this.toastr.error('Failed to connect to participants feed', 'Error');
+    }
+
+    return subject.asObservable();
+  }
+
+  getParticipantsCountFeed(canvasId: number): Observable<number> | null {
+    return this.countParticipantsSubjects.get(canvasId)?.asObservable() || null;
+  }
+
+  disconnectParticipantsFeed(canvasId: number): void {
+    const socket = this.countParticipantsSockets.get(canvasId);
+    if (socket) {
+      socket.close(1000, 'Manual disconnect');
+      this.countParticipantsSockets.delete(canvasId);
+    }
+    this.countParticipantsSubjects.delete(canvasId);
+  }
+
+  disconnectAllParticipantsFeeds(): void {
+    this.countParticipantsSockets.forEach((socket) => socket.close(1000));
+    this.countParticipantsSockets.clear();
+    this.countParticipantsSubjects.clear();
+  }
+
+  // ============================================================
+  // 🧩 HTTP ENDPOINTS
+  // ============================================================
+
+  createCanvas(canvas: any): Observable<any> {
+    return this.http.post<any>(`${env.apiUrl}`, canvas, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.authService.getToken()}`,
+      },
+    });
+  }
+
+  getAllCanvases(page = 0, size = 20): Observable<any> {
+    const params = new HttpParams().set('page', page).set('size', size);
+    return this.http.get<any>(`${env.apiUrl}`, {
+      params,
+      headers: { Authorization: `Bearer ${this.authService.getToken()}` },
+    });
+  }
+
+  deleteCanvas(id: number): Observable<void> {
+    return this.http.delete<void>(`${env.apiUrl}/${id}`, {
+      headers: { Authorization: `Bearer ${this.authService.getToken()}` },
+    });
+  }
+
+  // ============================================================
+  // 🧩 CLEANUP
+  // ============================================================
+
+  disconnect(manual: boolean): void {
+    [this.socket, this.eventFeedSocket, this.connectedUsersSocket].forEach(
+      (s) => s?.close(manual ? 1000 : 3000)
+    );
+    this.socket = this.eventFeedSocket = this.connectedUsersSocket = null;
   }
 
   isConnected(): boolean {
-    return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
-  }
-
-  createCanvas(canvasName: string, isPrivate: boolean): Observable<any> {
-    return this.http.post(
-      `${env.apiUrl}/api`,
-      { canvasName, isPrivate },
-      { headers: { 'Authorization': `Bearer ${this.authservice.getToken()}` } }
-    );
+    return !!this.socket && this.socket.readyState === WebSocket.OPEN;
   }
 }

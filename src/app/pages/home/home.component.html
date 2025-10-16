@@ -1,8 +1,10 @@
 <div class="home-container">
-  <!-- Header -->
+
   <!-- Header -->
   <div class="header">
     <div class="logo-row">
+
+      <!-- Logo -->
       <div class="logo">
         <i class="fas fa-palette"></i>
         <span>CanvasFlow</span>
@@ -16,15 +18,14 @@
 
         <div class="dropdown-menu" *ngIf="dropdownOpen">
           <button class="dropdown-item">My Profile</button>
-          <button class="dropdown-item" (click)="goToSettings()">Settings</button>
           <button class="dropdown-item" (click)="logout()">Logout</button>
         </div>
       </div>
+
     </div>
   </div>
 
-
-  <!-- Search & Add -->
+  <!-- Search & Add Canvas -->
   <div class="search-create-container">
     <div class="search-box">
       <input
@@ -38,64 +39,39 @@
         <i class="fas fa-search"></i>
       </button>
     </div>
-
   </div>
 
-  <!-- Trending Canvases -->
-  <h2 class="section-title"><i class="fas fa-fire"></i> Trending Canvases</h2>
-  <div class="cards-container trending-canvases">
-    <div class="card" *ngFor="let canvas of trendingCanvases">
-      <div class="card-img-container">
-        <img class="card-img" [src]="canvas.image" [alt]="canvas.title" />
-        <div class="card-badge" [ngClass]="canvas.status.toLowerCase()">
-          {{ canvas.status }}
-        </div>
-        <span *ngIf="canvas.live" class="live-dot"></span>
-      </div>
-      <div class="card-body">
-        <h3 class="card-title">{{ canvas.title }}</h3>
-        <div class="card-meta">
-          <span>By: {{ canvas.creator }}</span>
-          <span class="participants">
-            <i class="fas fa-users"></i> {{ canvas.participants }}
-          </span>
-        </div>
-        <p class="card-description">{{ canvas.description }}</p>
-        <div class="card-actions">
-          <button class="btn-primary" (click)="joinCanvas(canvas)">
-            Join Canvas
-          </button>
-          <button class="btn-secondary"><i class="far fa-bookmark"></i></button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- Canvas Collection -->
+  <div class="cards-container">
 
-  <!-- My Collection -->
-  <h2 class="section-title"><i class="fas fa-folder-open"></i> My Collection</h2>
-  <div class="cards-container my-collection">
+    <!-- Create Canvas Button -->
     <button class="fab-inline" (click)="createCanvas()">
       <i class="fas fa-plus"></i>
       <span>Create New Canvas</span>
     </button>
 
-    <div class="card" *ngFor="let canvas of myCollection">
+    <!-- Canvas Cards -->
+    <div class="card" *ngFor="let canvas of canvases">
       <div class="card-img-container">
-        <img class="card-img" [src]="canvas.image" [alt]="canvas.title" />
-        <div class="card-badge" [ngClass]="canvas.status.toLowerCase()">
+        <img class="card-img" [src]="canvas.image" [alt]="canvas.name" loading="lazy" />
+
+        <!-- Status Badge -->
+        <div class="card-badge" [ngClass]="canvas.status">
           {{ canvas.status }}
         </div>
-        <span *ngIf="canvas.live" class="live-dot"></span>
+
+        <!-- Red glowing dot for active participants -->
+        <span *ngIf="canvas.participants && canvas.participants > 0" class="live-dot"></span>
       </div>
+
       <div class="card-body">
-        <h3 class="card-title">{{ canvas.title }}</h3>
+        <h3 class="card-title">{{ canvas.name }}</h3>
         <div class="card-meta">
           <span>{{ canvas.meta }}</span>
           <span class="participants">
-            <i class="fas fa-users"></i> {{ canvas.participants }}
+            <i class="fas fa-users"></i> {{ canvas.participants || 0 }}
           </span>
         </div>
-        <p class="card-description">{{ canvas.description }}</p>
         <div class="card-actions">
           <button class="btn-primary" (click)="openCanvas(canvas)">
             {{ canvas.actionText }}
@@ -106,5 +82,7 @@
         </div>
       </div>
     </div>
+
   </div>
+
 </div>

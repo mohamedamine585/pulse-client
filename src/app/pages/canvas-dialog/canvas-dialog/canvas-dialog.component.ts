@@ -29,7 +29,9 @@ export class CanvasDialogComponent {
 
   startDrawing(): void {
     if (this.canvas.name && this.canvas.name.length >= 3) {
-      this.canvasService.createCanvas(this.canvas.name, !this.canvas.isPublic).subscribe(
+      this.canvasService.createCanvas({
+        name: this.canvas.name,
+      }).subscribe(
         (canvas) => {
           console.log('Canvas created:', canvas);
           if(canvas.id) {
