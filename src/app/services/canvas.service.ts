@@ -59,7 +59,9 @@ export class CanvasService {
   private connectedUsersSocket: WebSocket | null = null;
   private connectedUsersSubject = new Subject<ConnectedUser>();
 
-  // ✅ persistent participants feed map
+
+  private canvasStatusSubject = new Subject<boolean>();
+
   private countParticipantsSubjects = new Map<number, Subject<number>>();
   private countParticipantsSockets = new Map<number, WebSocket>();
 
@@ -91,15 +93,17 @@ export class CanvasService {
 
     try {
       this.socket = new WebSocket(wsUrl.toString());
-
       this.socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
 
           if (data.messageType === 'HELLO') {
             this.sessionId = data.sessionId;
+            this.canvasStatusSubject.next(true)
+
           }
           else if (data.messageType === 'NEW_USER'){
+
             if(data){
               this.messageSubject.next({
                 pixelsEdits: data.values,
@@ -116,6 +120,7 @@ export class CanvasService {
             data.sessionId !== this.sessionId
           ) {
               if(data.sessionId !== this.sessionId && data){
+                console.log("RECEIVED : ",data.positions.length)
                 this.messageSubject.next({
                   pixelsEdits: data.values,
                   pixelsPositions: data.positions,
@@ -135,35 +140,44 @@ export class CanvasService {
       };
 
       this.socket.onerror = () => {
+        this.canvasStatusSubject.next(false);
         this.toastr.error('Server connection error', 'Error', this.toastOptions);
       };
 
       this.socket.onclose = (reason: CloseEvent) => {
-        if (reason.code !== 1000)
-          this.toastr.warning(
-            'Server connection closed',
-            'Disconnected',
-            this.toastOptions
-          );
+         this.canvasStatusSubject.next(false);
+        if (reason.code !== 1000){
+          this.canvasStatusSubject.next(false);
+
+        }
+
       };
     } catch (e) {
+      this.canvasStatusSubject.next(false);
+     
       console.error(e);
     }
   }
 
+  getOnlineStatus() : Observable<boolean>{
+    return this.canvasStatusSubject.asObservable();
+  }
   sendPixelUpdates(pixelsPositions: number[], pixelsEdits: number[]): void {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
         const sessionId = this.sessionId;
         pixelsEdits = pixelsEdits.map((value) => value >>> 0);
+        const eventTimestamp =  Date.now();
 
         this.socket.send(
           JSON.stringify({
             pixelsPositions,
             pixelsEdits,
             sessionId,
+            eventTimestamp,
           })
         );
+  
       } catch (e) {
         console.error(e);
       }

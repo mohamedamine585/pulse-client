@@ -364,3 +364,24 @@ body {
   border-color: var(--primary-purple);
   transform: translateY(-1px);
 }
+/* TEMPORARY FIX - Add this to styles.css */
+.btn-primary,
+button[type="submit"],
+.dialog-actions button {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Override any hiding rules */
+button:disabled {
+  display: inline-block !important;
+  opacity: 0.7 !important;
+}
+/* If you have Angular Material overrides, make sure they're not hiding buttons */
+.mat-button,
+.mat-raised-button,
+.mat-flat-button {
+  display: inline-block !important;
+  visibility: visible !important;
+}

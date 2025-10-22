@@ -1,9 +1,4 @@
-// src/app/pages/auth/canvas-dialog/canvas-dialog.component.ts
 import { Component } from '@angular/core';
-import { Router } from '@angular/router';
-import { CanvasService } from '../../../services/canvas.service';
-import { ToastrService } from 'ngx-toastr';
-import { DialogRef, DIALOG_DATA } from '@angular/cdk/dialog';
 import { MatDialogRef } from '@angular/material/dialog';
 
 @Component({
@@ -17,39 +12,23 @@ export class CanvasDialogComponent {
     isPublic: false
   };
 
-  errorMessage: string = '';
+  errorMessage = '';
 
-  canvasId : any ;
-  constructor(
-    private router: Router,
-    private canvasService: CanvasService,
-    private toastr: ToastrService,
-    private dialog: MatDialogRef<CanvasDialogComponent>, // Use MatDialogRef for closing the dialog
-  ) {}
+  constructor(public dialogRef: MatDialogRef<CanvasDialogComponent>) {}
 
   startDrawing(): void {
-    if (this.canvas.name && this.canvas.name.length >= 3) {
-      this.canvasService.createCanvas({
-        name: this.canvas.name,
-      }).subscribe(
-        (canvas) => {
-          console.log('Canvas created:', canvas);
-          if(canvas.id) {
-            this.dialog.close(canvas); // Close the dialog and pass the canvas ID
-          }
-        },
-        (error) => {
-          console.error('Error creating canvas:', error);
-          this.errorMessage = 'Failed to create canvas';
-          this.toastr.error('Error creating canvas', 'Error');
-        }
-      );
-    } else {
-      this.errorMessage = 'Canvas name must be at least 3 characters long';
+    if (!this.canvas.name?.trim()) {
+      this.errorMessage = 'Please enter a canvas name';
+      return;
     }
+    this.dialogRef.close(this.canvas);
   }
 
   cancel(): void {
-    this.dialog.close(); // Close the dialog without any action
+    this.dialogRef.close();
+  }
+
+  clearError(): void {
+    this.errorMessage = '';
   }
 }

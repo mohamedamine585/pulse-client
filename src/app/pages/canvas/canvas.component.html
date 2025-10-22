@@ -1,93 +1,176 @@
+<div class="infinite-canvas-app">
+  <!-- Minimal Header -->
+  <div class="minimal-header">
+    <div class="header-left">
+      <button class="header-btn home-btn" routerLink="/home" title="Return to Home">
+        <i class="fas fa-arrow-left"></i>
+        <span>Home</span>
+      </button>
+      <div class="canvas-info">
+        <span class="canvas-id">Canvas #{{ canvasId }}</span>
+        <div
+  class="status-dot"
+  [ngStyle]="{ 'background-color': isOnline ? '#10b981' : 'orange' , 'box-shadow': isOnline ? '0 0 6px #10b981' : '0 0 6px #fb8f5d;' }">
+</div>
 
-<div class="main-layout">
-  <div class="toolbar" [class.expanded]="isMenuOpen">
-    <div class="tool-section">
-
-
-      <div class="auto-save-container">
-        <span class="auto-save-label">Auto Save</span>
-        <div class="toggle-container">
-          <label class="toggle-switch">
-            <input type="checkbox"
-                   [(ngModel)]="autoSaveEnabled"
-                   (change)="toggleAutoSave()">
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="toggle-state">{{ autoSaveEnabled ? 'ON' : 'OFF' }}</span>
+      </div>
+    </div>
+    
+    <div class="header-center">
+      <div class="current-tool">
+        <div class="brush-indicator" 
+             [style.background-color]="color"
+             [style.width.px]="cursorWidth"
+             [style.height.px]="cursorWidth">
+        </div>
+        <span class="tool-text">{{ cursorWidth }}px • {{ color.toUpperCase() }}</span>
+      </div>
+    </div>
+    
+    <div class="header-right">
+      <button class="header-btn" (click)="clearCanvas()" title="Clear Canvas">
+        <i class="fas fa-eraser"></i>
+      </button>
+      <button class="header-btn" (click)="saveCanvas()" title="Save Canvas">
+        <i class="fas fa-save"></i>
+      </button>
+      
+      <!-- Users Count with Dropdown -->
+      <div class="user-count-container">
+        <div class="user-count" (click)="toggleUsersPanel()" title="Show Connected Users">
+          <i class="fas fa-users"></i>
+          <span>{{ connectedUsers.length }}</span>
+          <i class="fas fa-chevron-down dropdown-arrow" [class.rotated]="showUsersPanel"></i>
+        </div>
+        
+        <!-- Users Panel -->
+        <div class="users-panel" *ngIf="showUsersPanel" (click)="$event.stopPropagation()">
+          <div class="users-panel-header">
+            <h3>Connected Users</h3>
+            <button class="close-btn" (click)="hideUsersPanel()" title="Close">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          
+          <div class="users-list">
+            <div *ngFor="let user of connectedUsers" class="user-item">
+              <div class="user-avatar">
+                <div class="avatar-circle" [style.background-color]="user.color">
+                  {{ user.initials }}
+                </div>
+              </div>
+              
+              <div class="user-info">
+                <div class="user-name">User {{ user.userId }}</div>
+                <div class="user-status">
+                  <span class="status-text">{{ user.status === 'drawing' ? 'Drawing' : 'Idle' }}</span>
+                  <span class="connection-dot" [class.connected]="user.status === 'drawing'"></span>
+                </div>
+              </div>
+            </div>
+            
+            <div *ngIf="connectedUsers.length === 0" class="no-users">
+              <i class="fas fa-users-slash"></i>
+              <p>No users connected</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="tool-section">
-      <h3>Colors</h3>
-      <div class="color-grid">
+  <!-- Rest of your existing template remains the same -->
+  <!-- Infinite Canvas Container -->
+  <div class="infinite-canvas-container" 
+       #canvasContainer>
+    
+    <!-- Canvas with dynamic positioning -->
+    <div class="canvas-wrapper" 
+         id="canvasWrapper"
+         [style.transform]="'translate(' + panX + 'px, ' + panY + 'px) scale(' + zoom + ')'"
+         [style.transformOrigin]="'0 0'">
+      <canvas #canvas 
+              class="infinite-canvas-surface"
+              width="5000" 
+              height="4000"
+              style="display: block; position: absolute; top: 0; left: 0;">
+      </canvas>
+    </div>
+
+    <!-- Grid Pattern Background -->
+    <div class="grid-background" 
+         [style.transform]="'translate(' + panX + 'px, ' + panY + 'px) scale(' + zoom + ')'"
+         [style.transformOrigin]="'0 0'"></div>
+
+    <!-- Center Indicator -->
+    <div class="center-indicator" *ngIf="showCenterIndicator"></div>
+  </div>
+
+  <!-- Floating Controls -->
+  <div class="floating-controls">
+    <!-- Color Palette -->
+    <div class="control-group colors-group">
+      <div class="color-palette">
         <button
           *ngFor="let colorHex of colors"
-          class="color-button"
+          class="color-dot"
           [class.active]="activeColor === colorHex"
           (click)="changeColor(colorHex)"
           [style.background-color]="colorHex"
-          type="button">  <!-- Add type="button" to prevent default form submission -->
+          [title]="colorHex">
         </button>
       </div>
     </div>
 
-    <div class="tool-section">
-      <h3>Actions</h3>
-      <button class="action-button" (click)="clearCanvas()">Clear</button>
-      <button class="action-button" (click)="saveCanvas()">Save</button>
+    <!-- Brush Controls -->
+    <div class="control-group brush-group">
+      <div class="brush-controls">
+        <button class="control-btn" (click)="decreaseBrush()" title="Decrease Brush Size">
+          <i class="fas fa-minus"></i>
+        </button>
+        <div class="brush-size">{{ cursorWidth }}px</div>
+        <button class="control-btn" (click)="increaseBrush()" title="Increase Brush Size">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- View Controls -->
+    <div class="control-group view-group">
+      <!-- Mode Toggle Button -->
+      <button class="control-btn mode-toggle" 
+              (click)="toggleMode()" 
+              [title]="currentMode === 'draw' ? 'Switch to Pan Mode' : 'Switch to Draw Mode'"
+              [class.active]="currentMode === 'draw'">
+        <i [class]="currentMode === 'draw' ? 'fas fa-pencil-alt' : 'fas fa-hand-paper'"></i>
+      </button>
+      
+      <button class="control-btn" (click)="resetView()" title="Reset View">
+        <i class="fas fa-crosshairs"></i>
+      </button>
+      <button class="control-btn" (click)="zoomIn()" title="Zoom In">
+        <i class="fas fa-search-plus"></i>
+      </button>
+      <button class="control-btn" (click)="zoomOut()" title="Zoom Out">
+        <i class="fas fa-search-minus"></i>
+      </button>
+      <div class="zoom-level">{{ (zoom * 100).toFixed(0) }}%</div>
     </div>
   </div>
 
-  <div class="canvas-container">
-    <canvas #canvas></canvas>
-  </div>
-
-  <div class="right-space">
-    <div class="users-events-panel">
-
-      <!-- Connected Users -->
-      <div class="panel-section">
-        <h3>Connected Users ({{ connectedUsers.length }})</h3>
-        <ul class="user-grid">
-          <li *ngFor="let user of connectedUsers | slice:0:20" class="user-item">
-          <span class="user-avatar" [style.background-color]="user.color">
-            {{ user.initials }}
-            <span
-              class="status-dot"
-              [ngClass]="{
-                'drawing': user.status === 'drawing',
-                'idle': user.status === 'idle',
-                'active': user.status === 'active'
-              }"></span>
-          </span>
-          </li>
-        </ul>
+  <!-- Activity Toast -->
+  <div class="activity-toast" *ngIf="recentEvents.length > 0">
+    <div class="toast-content">
+      <div class="toast-item" 
+           *ngFor="let event of recentEvents | slice:0:2"
+           [class.fading]="event.fading">
+        <i [class]="getEventIcon(event)"></i>
+        <span>{{ event.description }}</span>
       </div>
-
-      <!-- Activity Feed -->
-      <div class="panel-section">
-        <h3>Activity Feed</h3>
-        <ul class="event-list">
-          <li *ngFor="let event of recentEvents"
-              class="event-card"
-              [ngClass]="{ 'fade': event.fading }">
-          <span class="event-badge" [ngClass]="event.userEventType.toLowerCase()">
-            <i *ngIf="event.userEventType==='USER_JOINED'" class="fas fa-sign-in-alt"></i>
-            <i *ngIf="event.userEventType==='USER_LEFT'" class="fas fa-sign-out-alt"></i>
-          </span>
-            <div class="event-content">
-              <p class="event-desc">{{ event.description }}</p>
-              <span class="event-time">{{ event.timestamp | date:'shortTime' }}</span>
-            </div>
-          </li>
-        </ul>
-      </div>
-
     </div>
   </div>
 
 
-
-
+  <!-- Backdrop to close panel when clicking outside -->
+  <div class="panel-backdrop" *ngIf="showUsersPanel" (click)="hideUsersPanel()"></div>
 </div>

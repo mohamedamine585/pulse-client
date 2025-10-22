@@ -1,6 +1,6 @@
 import { Component, ElementRef, ViewChild, HostListener, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
-import {ActivatedRoute, EventType, Router} from '@angular/router';
-import {CanvasService, UserEvent, UserEventType, Event, ConnectedUser} from '../../services/canvas.service';
+import { ActivatedRoute, Router } from '@angular/router';
+import { CanvasService, UserEvent, UserEventType, ConnectedUser } from '../../services/canvas.service';
 
 interface Point {
   x: number;
@@ -12,26 +12,52 @@ interface Point {
   templateUrl: './canvas.component.html',
   styleUrls: ['./canvas.component.css']
 })
-export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
+export class CanvasComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('canvas', {static: true}) private canvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('canvasContainer', {static: false}) private canvasContainer!: ElementRef;
+  @ViewChild('canvasWrapper', {static: false}) private canvasWrapper!: ElementRef;
 
-  private canvasId: number = 1;
+  canvasId: number = 1;
+  isOnline: boolean = false;
   private ctx!: CanvasRenderingContext2D;
   private lastPoint: Point | null = null;
-  loopAndUpdate = true;
+  
+  // Drawing properties
   color: string = '#000000';
   cursorWidth: number = 5;
   drawing: boolean = false;
   activeColor: string = '#000000';
+  
+  // Pan & Zoom properties
+  panX: number = 0;
+  panY: number = 0;
+  zoom: number = 1;
+  isPanning: boolean = false;
+  lastPanX: number = 0;
+  lastPanY: number = 0;
+  mouseX: number = 0;
+  mouseY: number = 0;
+  showCenterIndicator: boolean = false;
+  showCoordinates: boolean = true;
+
+  // Zoom constraints
+  private minZoom: number = 0.2;
+  private maxZoom: number = 3.0;
+  private zoomSensitivity: number = 0.001;
+  private zoomStep: number = 0.2;
+
+  // Other properties
+  loopAndUpdate = true;
   private sendInterval: any;
   private pixelBuffer: { positions: any[]; edits: any[] } = {positions: [], edits: []};
+  totalPixelsSent: number = 0;
 
   // Canvas settings
-
+  private readonly canvasWidth: number = 800;  
+  private readonly canvasHeight: number = 600;
   private readonly defaultBackground: string = '#ffffff';
-  private readonly canvasWidth: number = 800; // Fixed width
-  private readonly canvasHeight: number = 600; // Fixed height
 
+  // UI properties
   isMenuOpen = false;
   colors: string[] = [
     '#000000', // Black
@@ -42,563 +68,576 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
     '#FF00FF'  // Magenta
   ];
 
-  constructor(private router: Router,
-              private activatedRoute: ActivatedRoute,
-              private canvasService: CanvasService) {
+  // Drawing properties
+  private isDrawing = false;
 
-  }
+  // Mode switching
+  currentMode: 'draw' | 'pan' = 'draw';
+
+  // Connected users and events
+  connectedUsers: ConnectedUser[] = [];
+  recentEvents: UserEvent[] = [];
+  autoSaveEnabled: boolean = true;
+  private autoSaveInterval: any;
+
+  constructor(
+    private router: Router,
+    private activatedRoute: ActivatedRoute,
+    private canvasService: CanvasService
+  ) {}
 
   ngOnInit(): void {
     this.activatedRoute.queryParams.subscribe(params => {
       const idParam = params['canvasId'];
-
       if (idParam) {
         const parsedId = Number(idParam);
         if (!isNaN(parsedId)) {
           this.canvasId = parsedId;
-
-          // Connect to canvas and start auto-save only if valid ID
-          this.startAutoSave();
           this.canvasService.connect(this.canvasId);
           this.canvasService.connectToEventFeed(this.canvasId);
           this.canvasService.connectToConnectedUsersFeed(this.canvasId);
           this.handleEventFeed();
           this.handleConnectedUsersFeed();
+          this.updateOnlineStatus()
 
-          // Periodically clean up disconnected users
-          setInterval(() => this.cleanupDisconnectedUsers(), 10000); // Every 60 seconds
-        } else {
-          console.error('Invalid canvas ID:', idParam);
+          setInterval(() => this.cleanupDisconnectedUsers(), 10000);
         }
-      } else {
-        console.warn('No canvas ID in query params');
       }
     });
   }
-
-  addConnectedUser(ConnectedUser: any) {
-    // Avoid duplicates
-    if (!this.connectedUsers.find(u => u.userId === ConnectedUser.userId)) {
-      this.connectedUsers.push(ConnectedUser);
-    }else {
-      const user = this.connectedUsers.find(u => u.userId === ConnectedUser.userId);
-      if(user){
-        user.status = 'drawing';
-      }
-    }
-  }
-  private handleEventFeed() {
-    this.canvasService.getEventFeed().subscribe(event => {
-      if(event.userEventType === UserEventType.USER_LEFT){
-        const user = this.connectedUsers.find(u => u.userId === event.userId);
-        if(user){
-          user.status = 'idle';
-        }
-
-        this.addEvent(event);
-
-      }
-    });
-  }
-
-  cleanupDisconnectedUsers() {
-      this.connectedUsers = this.connectedUsers.filter(user => user.status !== 'idle');
-
-  }
-  private handleConnectedUsersFeed() {
-    this.canvasService.getConnectedUsersFeed().subscribe(user => {
-      user = {...user
-        ,color: this.getReadableHexColor(),
-         status:'drawing',
-        initials: 'U'+ user.userId.toString()
-      }
-      this.addConnectedUser(user);
-    });
-  }
-   getReadableHexColor(): string {
-    const r = Math.floor(Math.random() * 136);
-    const g = Math.floor(Math.random() * 136);
-    const b = Math.floor(Math.random() * 136);
-    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-  }
-
-  updateCanvas() {
-    this.canvasService.getMessages().subscribe(data => {
-      if (data.pixelsEdits && data.pixelsPositions) {
-
-        this.applyEdits(data.pixelsEdits, data.pixelsPositions, data.lineWidth)
-      }
-
-    })
-  }
-
-
-  private generateRandomEdits(pixelsEds: any, pixelsPos: any): void {
-    const pixelsEdits: number[] = pixelsEds ?? [];
-    const pixelsPositions: number[] = pixelsPos ?? [];
-
-    // Define a small range near (0, 0), e.g., 50x50 pixels
-    const range = 50; // You can adjust this range
-
-    // Generate 10,000 random pixel edits near (0, 0)
-    for (let i = 0; i < 10000; i++) {
-      const x = Math.floor(Math.random() * range);  // Limit x to range
-      const y = Math.floor(Math.random() * range);  // Limit y to range
-      const pixelIndex = (y * this.canvasWidth + x) * 4;
-
-      // Generate random RGB values (A is always 255)
-      pixelsEdits.push(
-        Math.floor(Math.random() * 256),  // R
-        Math.floor(Math.random() * 256),  // G
-        Math.floor(Math.random() * 256),  // B
-        255                               // A (fully opaque)
-      );
-
-      // Store the position where this pixel's RGBA values should go
-      pixelsPositions.push(pixelIndex);
-    }
-
-
-    let blankedits: number[] = new Array(pixelsPositions.length).fill(255);
-
-    // Apply edits to the canvas
-    this.applyEdits(blankedits, pixelsPositions, this.ctx.lineWidth);
-  }
-
-  private applyEdits(pixelsEdits: number[], pixelsPositions: number[], lineWidth: number): void {
-    const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight);
-    const data = imageData.data;
-    this.ctx.lineWidth = lineWidth;
-
-    for (let i = 0; i < pixelsPositions.length; i++) {
-      const pos = pixelsPositions[i] * 4; // Convert position to pixel index
-      const rgba = this.decodeRGBA(pixelsEdits[i]); // Decode RGBA
-
-      // Apply the decoded RGBA values
-      data[pos] = rgba.r;       // R
-      data[pos + 1] = rgba.g;   // G
-      data[pos + 2] = rgba.b;   // B
-      data[pos + 3] = rgba.a;   // A
-
-    }
-
-    // Update the canvas with the modified pixel data
-    this.ctx.putImageData(imageData, 0, 0);
-  }
-
 
   ngAfterViewInit(): void {
-    const canvas = this.canvas.nativeElement;
-    const context = canvas.getContext('2d', {willReadFrequently: true}); // Enable willReadFrequently
-
-    if (!context) {
-      console.error('Canvas 2D context not supported');
-      return;
-    }
-
-    this.ctx = context;
     this.initializeCanvas();
     this.startSendingPixels();
     this.updateCanvas();
-    this.testEncodeDecode()
-
+    this.testEncodeDecode();
+    this.centerCanvas();
   }
 
   private initializeCanvas(): void {
-    const canvas = this.canvas.nativeElement;
-
-    // Set fixed canvas size
-    canvas.width = this.canvasWidth;
-    canvas.height = this.canvasHeight;
-
-    // Set initial canvas state
+    // Set canvas dimensions
+    this.canvas.nativeElement.width = this.canvasWidth;
+    this.canvas.nativeElement.height = this.canvasHeight;
+    
+    // Use native HTML5 Canvas for drawing
+    this.ctx = this.canvas.nativeElement.getContext('2d', { willReadFrequently: true })!;
+    
+    // Set initial background
     this.ctx.fillStyle = this.defaultBackground;
-    this.ctx.fillRect(0, 0, canvas.width * 0.1, canvas.height * 0.1);
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
+    this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
+    
+    this.setupDrawingEvents();
+  }
+
+  private setupDrawingEvents(): void {
+    const container = this.canvasContainer.nativeElement;
+    
+    container.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    container.addEventListener('mousemove', this.handleMouseMove.bind(this));
+    container.addEventListener('mouseup', this.handleMouseUp.bind(this));
+    container.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
+    container.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
+  }
+
+  private handleMouseDown(event: MouseEvent): void {
+    event.preventDefault();
+    
+    // Use middle mouse button or modifier key for panning
+    if (event.button === 1 || event.ctrlKey || this.currentMode === 'pan') {
+      this.startPan(event);
+    } else if (event.button === 0) { // Left mouse button for drawing
+      this.startDrawing(event);
+    }
+  }
+
+  private handleMouseMove(event: MouseEvent): void {
+    // Update mouse coordinates
+    this.mouseX = event.clientX;
+    this.mouseY = event.clientY;
+
+    // Always update panning if active
+    if (this.isPanning) {
+      this.onPan(event);
+    }
+    
+    // Only draw if in draw mode and not panning
+    if (this.currentMode === 'draw' && this.isDrawing && !this.isPanning) {
+      this.continueDrawing(event);
+    }
+  }
+
+  private handleMouseUp(event: MouseEvent): void {
+    if (this.currentMode === 'pan') {
+      this.stopPan();
+    } else {
+      this.stopDrawing();
+    }
+  }
+
+  private handleMouseLeave(event: MouseEvent): void {
+    this.stopDrawing();
+    this.stopPan();
+  }
+
+  private handleWheel(event: WheelEvent): void {
+    this.onZoom(event);
+  }
+
+  // Keyboard event listeners for better control
+  @HostListener('window:keydown', ['$event'])
+  onKeyDown(event: KeyboardEvent): void {
+    if (event.key === ' ') { // Space bar for temporary panning
+      this.canvasContainer.nativeElement.style.cursor = 'grab';
+      this.currentMode = 'pan';
+    } else if (event.ctrlKey) { // Ctrl for temporary panning
+      this.canvasContainer.nativeElement.style.cursor = 'grab';
+    }
+  }
+
+  @HostListener('window:keyup', ['$event'])
+  onKeyUp(event: KeyboardEvent): void {
+    if (event.key === ' ') { // Release space bar
+      this.canvasContainer.nativeElement.style.cursor = 'crosshair';
+      this.currentMode = 'draw';
+    } else if (!event.ctrlKey) { // Release Ctrl
+      this.canvasContainer.nativeElement.style.cursor = this.currentMode === 'draw' ? 'crosshair' : 'grab';
+    }
+  }
+
+  // Window resize handler
+  @HostListener('window:resize')
+  onResize(): void {
+    this.centerCanvas();
+  }
+private startDrawing(event: MouseEvent): void {
+  if (this.currentMode === 'pan' && !event.ctrlKey) return;
+  
+  this.isDrawing = true;
+  this.drawing = true;
+  
+  const point = this.getCanvasCoordinates(event);
+  if (!point) return;
+  
+  console.log('🖱️ START DRAWING at:', point);
+  
+  // Start a new path with proper styling
+  this.ctx.beginPath();
+  this.ctx.moveTo(point.x, point.y);
+  this.ctx.strokeStyle = this.color;
+  this.ctx.lineWidth = this.cursorWidth;
+  this.ctx.lineCap = 'round';
+  this.ctx.lineJoin = 'round';
+  this.ctx.fillStyle = this.color;
+  
+  this.lastPoint = point;
+  
+  // Draw initial point AND capture it immediately
+  this.ctx.arc(point.x, point.y, this.cursorWidth / 2, 0, Math.PI * 2);
+  this.ctx.fill();
+  
+  // Capture the starting point
+  this.captureDrawnPixels(point, point);
+}
+private continueDrawing(event: MouseEvent): void {
+  if (!this.isDrawing || this.currentMode === 'pan') return;
+  
+  const point = this.getCanvasCoordinates(event);
+  if (!point) return;
+  
+  // Always capture pixels if we have a lastPoint, regardless of distance
+  if (this.lastPoint) {
+    // Continue the path
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.lastPoint.x, this.lastPoint.y);
+    this.ctx.lineTo(point.x, point.y);
+    this.ctx.strokeStyle = this.color;
+    this.ctx.lineWidth = this.cursorWidth;
+    this.ctx.stroke();
+    
+    // ALWAYS capture pixels - remove the distance check
+    this.captureDrawnPixels(this.lastPoint, point);
+  } else {
+    // If no lastPoint, just draw a point and capture it
+    this.ctx.beginPath();
+    this.ctx.arc(point.x, point.y, this.cursorWidth / 2, 0, Math.PI * 2);
+    this.ctx.fillStyle = this.color;
+    this.ctx.fill();
+    
+    // Capture a single point
+    this.captureDrawnPixels(point, point);
+  }
+  
+  this.lastPoint = point;
+}
+
+  // FIXED COORDINATE TRANSFORMATION - This is the key fix
+  private getCanvasCoordinates(event: MouseEvent): Point | null {
+    const container = this.canvasContainer.nativeElement;
+    const containerRect = container.getBoundingClientRect();
+    
+    // Get mouse position relative to container
+    const containerX = event.clientX - containerRect.left;
+    const containerY = event.clientY - containerRect.top;
+    
+    // Convert container coordinates to canvas coordinates
+    // Remove the pan offset and divide by zoom to get actual canvas coordinates
+    const canvasX = (containerX - this.panX) / this.zoom;
+    const canvasY = (containerY - this.panY) / this.zoom;
+    
+    
+    // Check if within canvas bounds with some tolerance
+    const tolerance = 50;
+    if (canvasX >= -tolerance && canvasX <= this.canvasWidth + tolerance && 
+        canvasY >= -tolerance && canvasY <= this.canvasHeight + tolerance) {
+      return { 
+        x: Math.round(canvasX), 
+        y: Math.round(canvasY) 
+      };
+    }
+    
+    return null;
+  }
+
+  // PAN & ZOOM METHODS
+  private startPan(event: MouseEvent): void {
+    if (event.button === 0 || event.button === 1) { // Left or middle mouse button
+      this.isPanning = true;
+      this.lastPanX = event.clientX;
+      this.lastPanY = event.clientY;
+      
+      // Change cursor to grabbing
+      this.canvasContainer.nativeElement.style.cursor = 'grabbing';
+    }
+  }
+
+  private onPan(event: MouseEvent): void {
+    if (!this.isPanning) return;
+
+    const deltaX = event.clientX - this.lastPanX;
+    const deltaY = event.clientY - this.lastPanY;
+
+    this.panX += deltaX;
+    this.panY += deltaY;
+
+    // Limit panning to keep canvas within view
+    this.constrainPanning();
+
+    this.lastPanX = event.clientX;
+    this.lastPanY = event.clientY;
+  }
+
+  private constrainPanning(): void {
+    const container = this.canvasContainer?.nativeElement;
+    if (!container) return;
+
+    const scaledWidth = this.canvasWidth * this.zoom;
+    const scaledHeight = this.canvasHeight * this.zoom;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    // Only constrain if canvas is larger than container
+    if (scaledWidth > containerWidth) {
+      const maxPanX = scaledWidth - containerWidth;
+      this.panX = Math.min(0, Math.max(-maxPanX, this.panX));
+    } else {
+      // Center horizontally if canvas is smaller
+      this.panX = (containerWidth - scaledWidth) / 2;
+    }
+
+    if (scaledHeight > containerHeight) {
+      const maxPanY = scaledHeight - containerHeight;
+      this.panY = Math.min(0, Math.max(-maxPanY, this.panY));
+    } else {
+      // Center vertically if canvas is smaller
+      this.panY = (containerHeight - scaledHeight) / 2;
+    }
+  }
+
+  private stopPan(): void {
+    this.isPanning = false;
+    // Reset cursor based on current mode
+    this.canvasContainer.nativeElement.style.cursor = this.currentMode === 'draw' ? 'crosshair' : 'grab';
+  }
+
+  private onZoom(event: WheelEvent): void {
+    event.preventDefault();
+    
+    const delta = -event.deltaY * this.zoomSensitivity;
+    const newZoom = this.zoom * (1 + delta);
+    
+    // Apply zoom constraints
+    const constrainedZoom = Math.max(this.minZoom, Math.min(this.maxZoom, newZoom));
+    
+    if (constrainedZoom !== this.zoom) {
+      const oldZoom = this.zoom;
+      this.zoom = constrainedZoom;
+      
+      // Zoom towards mouse position
+      this.zoomToPoint(event, oldZoom);
+      
+      // Constrain panning after zoom
+      this.constrainPanning();
+    }
+  }
+
+  private zoomToPoint(event: WheelEvent, oldZoom: number): void {
+    const container = this.canvasContainer.nativeElement;
+    const containerRect = container.getBoundingClientRect();
+    
+    // Mouse position relative to container
+    const mouseX = event.clientX - containerRect.left;
+    const mouseY = event.clientY - containerRect.top;
+    
+    // Calculate the zoom factor
+    const zoomFactor = this.zoom / oldZoom;
+    
+    // Adjust pan to zoom towards mouse position
+    this.panX = mouseX - (mouseX - this.panX) * zoomFactor;
+    this.panY = mouseY - (mouseY - this.panY) * zoomFactor;
+  }
+
+  // UI METHODS
+  toggleMode(): void {
+    this.currentMode = this.currentMode === 'draw' ? 'pan' : 'draw';
+    
+    // Update cursor
+    this.canvasContainer.nativeElement.style.cursor = this.currentMode === 'draw' ? 'crosshair' : 'grab';
+  }
+
+  zoomIn(): void {
+    const newZoom = this.zoom * (1 + this.zoomStep);
+    this.zoom = Math.min(this.maxZoom, newZoom);
+    this.constrainPanning();
+  }
+
+  zoomOut(): void {
+    const newZoom = this.zoom / (1 + this.zoomStep);
+    this.zoom = Math.max(this.minZoom, newZoom);
+    this.constrainPanning();
+  }
+
+  resetView(): void {
+    this.panX = 0;
+    this.panY = 0;
+    this.zoom = 1;
+    this.centerCanvas();
+  }
+
+  centerCanvas(): void {
+    const container = this.canvasContainer?.nativeElement;
+    if (container) {
+      const scaledWidth = this.canvasWidth * this.zoom;
+      const scaledHeight = this.canvasHeight * this.zoom;
+      
+      // Center the canvas in the container
+      this.panX = (container.clientWidth - scaledWidth) / 2;
+      this.panY = (container.clientHeight - scaledHeight) / 2;
+      
+      // Ensure panning constraints are respected
+      this.constrainPanning();
+    }
   }
 
   changeColor(newColor: string): void {
     this.color = newColor;
     this.activeColor = newColor;
-    if (this.ctx) {
-      this.ctx.strokeStyle = newColor;
+  }
+
+  decreaseBrush(): void {
+    if (this.cursorWidth > 1) {
+      this.cursorWidth--;
     }
   }
 
-
-
-  private startDrawing(event: MouseEvent): void {
-    this.drawing = true;
-    this.lastPoint = this.getMousePosition(event);
-    this.draw(event);
-  }
-
-  private draw(event: MouseEvent): void {
-    if (!this.canDraw(event)) return;
-
-    const currentPoint = this.getMousePosition(event);
-    if (this.lastPoint) {
-      this.drawLine(this.lastPoint, currentPoint);
-      this.captureDrawnPixels(this.lastPoint, currentPoint);
-    }
-
-    this.lastPoint = currentPoint;
-
-    if (this.pixelBuffer.positions.length > 0) {
-      // Send pixel updates to the backend
-      console.log("SENT UPDATE ", this.pixelBuffer.edits.length)
-      this.canvasService.sendPixelUpdates(this.pixelBuffer.positions, this.pixelBuffer.edits);
-
-      // Reset the buffer
-      this.pixelBuffer = {positions: [], edits: []};
+  increaseBrush(): void {
+    if (this.cursorWidth < 50) {
+      this.cursorWidth++;
     }
   }
 
-  private canDraw(event: MouseEvent): boolean {
-    if (!this.drawing || !this.ctx) return false;
-    const point = this.getMousePosition(event);
-    return this.isPointInCanvas(point);
+  clearCanvas(): void {
+    this.ctx.fillStyle = this.defaultBackground;
+    this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
   }
 
-  private drawLine(from: Point, to: Point): void {
-    this.ctx.beginPath();
-    this.ctx.moveTo(from.x, from.y);
-    this.ctx.lineTo(to.x, to.y);
-    this.ctx.strokeStyle = this.color;
-    this.ctx.lineWidth = this.cursorWidth;
-    this.ctx.stroke();
+  saveCanvas(): void {
+    const dataURL = this.canvas.nativeElement.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = 'pulse-drawing.png';
+    link.href = dataURL;
+    link.click();
   }
 
-
-  private startSendingPixels(): void {
-    this.sendInterval = setInterval(() => {
-      if (this.pixelBuffer.positions.length > 0) {
-        // Send pixel updates to the backend
-        this.canvasService.sendPixelUpdates(this.pixelBuffer.positions, this.pixelBuffer.edits);
-
-        // Reset the buffer
-        this.pixelBuffer = {positions: [], edits: []};
-      }
-    }, 50); // Send updates every 50 ms
-  }
-
-  private captureDrawnPixels(from: Point, to: Point): void {
-    // Calculate the bounds of the drawn area (including cursor width for more precision)
-    const bounds = this.calculateDrawBounds(from, to);
-
-    // Get the image data for the drawn area
-    const imageData = this.getDrawnAreaImageData(bounds);
-
-    // Extract modified pixels (non-transparent pixels)
-    const {pixelsEdits, pixelsPositions} = this.extractModifiedPixels(imageData, bounds);
-
-    // Store pixels in the buffer
-    this.pixelBuffer.positions.push(...pixelsPositions);
-    this.pixelBuffer.edits.push(...pixelsEdits);
-  }
 
   private calculateDrawBounds(from: Point, to: Point): {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-    width: number;
-    height: number;
+    minX: number; maxX: number; minY: number; maxY: number; width: number; height: number;
   } {
-    const minX = Math.min(from.x, to.x);
-    const maxX = Math.max(from.x, to.x);
-    const minY = Math.min(from.y, to.y);
-    const maxY = Math.max(from.y, to.y);
+    const padding = this.cursorWidth;
+    const minX = Math.max(0, Math.min(from.x, to.x) - padding);
+    const maxX = Math.min(this.canvasWidth, Math.max(from.x, to.x) + padding);
+    const minY = Math.max(0, Math.min(from.y, to.y) - padding);
+    const maxY = Math.min(this.canvasHeight, Math.max(from.y, to.y) + padding);
 
-    // Adjust bounds to match the line drawn more closely (keep cursor width *1.5 buffer for precision)
     return {
-      minX,
-      maxX,
-      minY,
-      maxY,
-      width: Math.ceil(maxX - minX + this.cursorWidth * 1.5),
-      height: Math.ceil(maxY - minY + this.cursorWidth * 1.5)
+      minX, maxX, minY, maxY,
+      width: Math.ceil(maxX - minX),
+      height: Math.ceil(maxY - minY)
     };
   }
 
   private getDrawnAreaImageData(bounds: {
-    minX: number;
-    minY: number;
-    width: number;
-    height: number;
+    minX: number; minY: number; width: number; height: number;
   }): ImageData {
     return this.ctx.getImageData(
-      Math.max(0, bounds.minX - this.cursorWidth),  // Adjust for alignment
-      Math.max(0, bounds.minY - this.cursorWidth),  // Adjust for alignment
+      Math.max(0, bounds.minX),
+      Math.max(0, bounds.minY),
       bounds.width,
       bounds.height
     );
   }
+
   private encodeRGBA(r: number, g: number, b: number, a: number): number {
-    return ((r << 24) | (g << 16) | (b << 8) | a) >>> 0; // Ensure unsigned 32-bit integer
+    return ((r << 24) | (g << 16) | (b << 8) | a) >>> 0;
   }
 
   private decodeRGBA(rgba: number): { r: number, g: number, b: number, a: number } {
     rgba = this.normalizeInt(rgba);
     return {
-      r: (rgba >> 24) & 0xff, // Extract R
-      g: (rgba >> 16) & 0xff, // Extract G
-      b: (rgba >> 8) & 0xff,  // Extract B
-      a: rgba & 0xff          // Extract A
+      r: (rgba >> 24) & 0xff,
+      g: (rgba >> 16) & 0xff,
+      b: (rgba >> 8) & 0xff,
+      a: rgba & 0xff
     };
   }
 
   private normalizeInt(value: number): number {
     return value >>> 0;
   }
+private extractModifiedPixels(imageData: ImageData, bounds: {
 
-  private extractModifiedPixels(imageData: ImageData, bounds: {
-    minX: number;
-    minY: number;
-    width: number;
-    height: number;
-  }): { pixelsEdits: number[], pixelsPositions: number[] } {
-    const pixelsEdits: number[] = [];
-    const pixelsPositions: number[] = [];
+  minX: number; minY: number; width: number; height: number;
+}): { pixelsEdits: number[], pixelsPositions: number[] } {
 
-    for (let y = 0; y < bounds.height; y++) {
-      for (let x = 0; x < bounds.width; x++) {
-        const i = (y * bounds.width + x) * 4; // Index in the ImageData array
-        const alpha = imageData.data[i + 3]; // Alpha channel value
+  console.log("start extraction")
+  const pixelsEdits: number[] = [];
+  const pixelsPositions: number[] = [];
+  const visited = new Set<number>();
 
-        // Only process non-transparent pixels (alpha > 0)
-        if (alpha > 0) {
-          const r = imageData.data[i];     // Red channel
-          const g = imageData.data[i + 1]; // Green channel
-          const b = imageData.data[i + 2]; // Blue channel
-          const a = imageData.data[i + 3]; // Alpha channel
+  for (let y = 0; y < bounds.height; y++) {
+    for (let x = 0; x < bounds.width; x++) {
+      const i = (y * bounds.width + x) * 4;
+      const alpha = imageData.data[i + 3];
 
-          // Encode RGBA into a single 32-bit integer
-          const rgba = this.encodeRGBA(r, g, b, a);
+      if (alpha > 0) { // Threshold to ignore nearly transparent pixels
+        const r = imageData.data[i];
+        const g = imageData.data[i + 1];
+        const b = imageData.data[i + 2];
+        const a = imageData.data[i + 3];
 
-          // Calculate the actual position in the full canvas array
-          const actualX = Math.floor(bounds.minX + x) - 1;
-          const actualY = Math.floor(bounds.minY + y) - 1;
-          const basePosition = actualY * this.canvasWidth + actualX;
-
-          // Store the encoded RGBA value and position
-          pixelsEdits.push(rgba);
-
-          pixelsPositions.push(basePosition);
+        const rgba = this.encodeRGBA(r, g, b, a);
+        
+        // Calculate actual canvas coordinates
+        const actualX = Math.floor(bounds.minX + x);
+        const actualY = Math.floor(bounds.minY + y);
+        
+        // Calculate position in the 1D pixel array
+        const position = actualY * this.canvasWidth + actualX;
+        
+        // Validate position is within bounds
+        if (position >= 0 && position < this.canvasWidth * this.canvasHeight) {
+          if (!visited.has(position)) {
+            visited.add(position);
+            pixelsEdits.push(rgba);
+            pixelsPositions.push(position);
+          }
         }
       }
     }
-
-    return {pixelsEdits, pixelsPositions};
   }
 
-  private testEncodeDecode(): void {
-    const testRGBA = {r: 255, g: 128, b: 64, a: 255};
-    const encoded = this.encodeRGBA(testRGBA.r, testRGBA.g, testRGBA.b, testRGBA.a);
-    const decoded = this.decodeRGBA(encoded);
+  console.log('📤 Extracted pixels:', {
+    bounds: bounds,
+    extracted: pixelsPositions.length,
+    unique: visited.size
+  });
 
-    if (
-      decoded.r === testRGBA.r &&
-      decoded.g === testRGBA.g &&
-      decoded.b === testRGBA.b &&
-      decoded.a === testRGBA.a
-    ) {
+  return { pixelsEdits, pixelsPositions };
+}
+
+  // ... rest of your methods (event handling, user management, etc.) remain the same
+  getEventIcon(event: UserEvent): string {
+    switch (event.userEventType) {
+      case UserEventType.USER_JOINED:
+        return 'fas fa-user-plus';
+      case UserEventType.USER_LEFT:
+        return 'fas fa-user-minus';
+      default:
+        return 'fas fa-circle';
+    }
+  }
+
+  addConnectedUser(connectedUser: any) {
+    if (!this.connectedUsers.find(u => u.userId === connectedUser.userId)) {
+      this.connectedUsers.push(connectedUser);
     } else {
-    }
-  }
-
-  private isPointInCanvas(point: Point): boolean {
-    return point.x >= 0 && point.x <= this.canvasWidth &&
-      point.y >= 0 && point.y <= this.canvasHeight;
-  }
-
-
-  private showPixelData(): void {
-    // Get pixel data as Uint8ClampedArray
-    const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight);
-    const pixels = imageData.data;
-
-    // Convert to matrix format (RGBA values)
-    const matrix: number[][][] = [];
-    for (let y = 0; y < this.canvasHeight; y++) {
-      const row: number[][] = [];
-      for (let x = 0; x < this.canvasWidth; x++) {
-        const i = (y * this.canvasWidth + x) * 4;
-        row.push([
-          pixels[i],     // R
-          pixels[i + 1], // G
-          pixels[i + 2], // B
-          pixels[i + 3]  // A
-        ]);
-      }
-      matrix.push(row);
-    }
-
-  }
-
-  getNonBlackNonWhitePixels(imageData: ImageData) {
-    const data = imageData.data;
-    const width = this.canvasWidth;
-    const nonBlackNonWhitePixels = [];
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];     // Red channel
-      const g = data[i + 1]; // Green channel
-      const b = data[i + 2]; // Blue channel
-      const a = data[i + 3]; // Alpha channel
-
-      // Check if pixel is not black AND not white
-      const isBlack = (r === 0 && g === 0 && b === 0 && a === 255);
-      const isWhite = (r === 255 && g === 255 && b === 255 && a === 255);
-
-      if (!isBlack && !isWhite) {
-        nonBlackNonWhitePixels.push({
-          r, g, b, a,
-          x: (i / 4) % width,
-          y: Math.floor((i / 4) / width)
-        });
+      const user = this.connectedUsers.find(u => u.userId === connectedUser.userId);
+      if (user) {
+        user.status = 'drawing';
       }
     }
-
-    return nonBlackNonWhitePixels;
   }
 
-  private countNonWhitePixels(pixels: Uint8ClampedArray): number {
-    let count = 0;
-    for (let i = 0; i < pixels.length; i += 4) {
-      if (!(pixels[i] === 255 && pixels[i + 1] === 255 &&
-        pixels[i + 2] === 255 && pixels[i + 3] === 255)) {
-        count++;
+  private handleEventFeed() {
+    this.canvasService.getEventFeed().subscribe(event => {
+      if (event.userEventType === UserEventType.USER_LEFT) {
+        const user = this.connectedUsers.find(u => u.userId === event.userId);
+        if (user) {
+          user.status = 'idle';
+        }
+        this.addEvent(event);
       }
-    }
-    return count;
+    });
   }
 
-  private stopDrawing(): void {
-    this.drawing = false;
-    this.lastPoint = null;
+  cleanupDisconnectedUsers() {
+    this.connectedUsers = this.connectedUsers.filter(user => user.status !== 'idle');
   }
 
-
-  private getMousePosition(event: MouseEvent): Point {
-    const rect = this.canvas.nativeElement.getBoundingClientRect();
-    const scaleX = this.canvas.nativeElement.width / rect.width;
-    const scaleY = this.canvas.nativeElement.height / rect.height;
-
-    return {
-      x: (event.clientX - rect.left) * scaleX,
-      y: (event.clientY - rect.top) * scaleY
-    };
+  private handleConnectedUsersFeed() {
+    this.canvasService.getConnectedUsersFeed().subscribe(user => {
+      user = {
+        ...user,
+        color: this.getReadableHexColor(),
+        status: 'drawing',
+        initials: 'U' + user.userId.toString()
+      };
+      this.addConnectedUser(user);
+    });
   }
 
-  // Clear canvas
-  clearCanvas(): void {
-    if (this.ctx) {
-      this.ctx.fillStyle = this.defaultBackground;
-      this.ctx.fillRect(0, 0, this.canvas.nativeElement.width, this.canvas.nativeElement.height);
-    }
+  getReadableHexColor(): string {
+    const r = Math.floor(Math.random() * 136);
+    const g = Math.floor(Math.random() * 136);
+    const b = Math.floor(Math.random() * 136);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
-
-  // Save canvas as image
-  saveCanvas(): void {
-    const link = document.createElement('a');
-    link.download = 'pulse-drawing.png';
-    link.href = this.canvas.nativeElement.toDataURL();
-    // link.click();
-  }
-
-
-  @HostListener('mousedown', ['$event'])
-  onMouseDown(event: MouseEvent): void {
-    this.startDrawing(event);
-  }
-
-  @HostListener('mousemove', ['$event'])
-  onMouseMove(event: MouseEvent): void {
-    this.draw(event);
-  }
-
-  @HostListener('mouseup')
-  onMouseUp(): void {
-    this.stopDrawing();
-  }
-
-  @HostListener('mouseleave')
-  onMouseLeave(): void {
-    this.stopDrawing();
-  }
-
-  autoSaveEnabled: boolean = true;
-  private autoSaveInterval: any;
-
-
-  ngOnDestroy() {
-    clearInterval(this.sendInterval);
-    this.canvasService.disconnect(true);
-    this.stopAutoSave();
-  }
-
-  toggleAutoSave() {
-    if (this.autoSaveEnabled) {
-      this.startAutoSave();
-    } else {
-      this.stopAutoSave();
-    }
-  }
-
-  private startAutoSave() {
-    if (this.autoSaveEnabled) {
-      this.autoSaveInterval = setInterval(() => {
-        this.saveCanvas();
-      }, 30000); // Auto save every 30 seconds
-    }
-  }
-
-  private stopAutoSave() {
-    if (this.autoSaveInterval) {
-      clearInterval(this.autoSaveInterval);
-    }
-  }
-
-  toggleMenu() {
-    this.isMenuOpen = !this.isMenuOpen;
-  }
-
-  connectedUsers: ConnectedUser[] = [ ];
-
-
-  recentEvents: UserEvent[] = [];
 
   addEvent(event: UserEvent): void {
-    // Assign timestamp if missing
+    if (!event) return;
 
-    if (!event) {
-      return;
-    }
-
-
-    // Create UI-friendly description
     event.description = this.getUserEventDescription(event);
-
-    // Add fading flag
     event.fading = false;
-
-    // Add to top of list
     this.recentEvents.unshift(event);
 
-    // Fade out after 5 seconds
     setTimeout(() => {
       event.fading = true;
     }, 5000);
 
-    // Remove completely after 6 seconds
     setTimeout(() => {
       this.recentEvents = this.recentEvents.filter(e => e !== event);
     }, 6000);
   }
 
-// Helper function to generate description
   private getUserEventDescription(event: UserEvent): string {
     switch (event.userEventType) {
       case UserEventType.USER_JOINED:
@@ -610,15 +649,192 @@ export class CanvasComponent implements OnInit, AfterViewInit,OnDestroy {
     }
   }
 
+  // Auto-save methods
+  private startAutoSave() {
+    if (this.autoSaveEnabled) {
+      this.autoSaveInterval = setInterval(() => {
+        this.saveCanvas();
+      }, 30000);
+    }
+  }
+
+  private stopAutoSave() {
+    if (this.autoSaveInterval) {
+      clearInterval(this.autoSaveInterval);
+    }
+  }
+
+  toggleAutoSave() {
+    if (this.autoSaveEnabled) {
+      this.startAutoSave();
+    } else {
+      this.stopAutoSave();
+    }
+  }
+
+  updateOnlineStatus(){
+    this.canvasService.getOnlineStatus().subscribe(value =>{
+      this.isOnline = value
+    })
+  }
+
+  // Canvas service methods
+  updateCanvas() {
+    this.canvasService.getMessages().subscribe(data => {
+      if (data.pixelsEdits && data.pixelsPositions) {
+        this.applyEdits(data.pixelsEdits, data.pixelsPositions, data.lineWidth);
+      }
+    });
+  }
+
+private applyEdits(pixelsEdits: number[], pixelsPositions: number[], lineWidth: number): void {
+  if (!pixelsEdits || !pixelsPositions || pixelsEdits.length === 0) return;
+
+  const BATCH_SIZE = 100; // Process 100 pixels at a time
+  const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight);
+  const data = imageData.data;
+
+  // Process in batches to maintain line continuity
+  for (let batchStart = 0; batchStart < pixelsPositions.length; batchStart += BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, pixelsPositions.length);
+    
+    // Apply this batch
+    for (let i = batchStart; i < batchEnd; i++) {
+      const pos = pixelsPositions[i];
+      const rgba = this.decodeRGBA(pixelsEdits[i]);
+
+      const pixelIndex = pos * 4;
+      data[pixelIndex] = rgba.r;
+      data[pixelIndex + 1] = rgba.g;
+      data[pixelIndex + 2] = rgba.b;
+      data[pixelIndex + 3] = rgba.a;
+    }
+
+    // Immediately render this batch to maintain visual continuity
+    this.ctx.putImageData(imageData, 0, 0);
+  }
+}
+// Add these properties to your class
+private readonly BATCH_SIZE = 30;
+private readonly MAX_SEND_RATE = 60; // 60 updates per second max
+private lastSendTime: number = 0;
+private sendTimeout: any = null;
+
+// Replace your current methods with these:
+
+private captureDrawnPixels(from: Point, to: Point): void {
+  const bounds = this.calculateDrawBounds(from, to);
+  const imageData = this.getDrawnAreaImageData(bounds);
+  const { pixelsEdits, pixelsPositions } = this.extractModifiedPixels(imageData, bounds);
+  
+  this.pixelBuffer.positions.push(...pixelsPositions);
+  this.pixelBuffer.edits.push(...pixelsEdits);
+
+  // Use smart batching
+  this.schedulePixelSend();
+}
+
+private schedulePixelSend(): void {
+  if (this.sendTimeout) {
+    clearTimeout(this.sendTimeout);
+  }
+
+  const currentTime = Date.now();
+  const timeSinceLastSend = currentTime - this.lastSendTime;
+  const minTimeBetweenSends = 1000 / this.MAX_SEND_RATE;
+
+  // Send immediately if we have enough data or enough time has passed
+  if (this.pixelBuffer.positions.length >= this.BATCH_SIZE || 
+      timeSinceLastSend >= minTimeBetweenSends) {
+    this.sendPixelBatch();
+  } else {
+    // Schedule for later
+    const timeToWait = Math.max(1, minTimeBetweenSends - timeSinceLastSend);
+    this.sendTimeout = setTimeout(() => {
+      this.sendPixelBatch();
+    }, timeToWait);
+  }
+}
+
+private sendPixelBatch(): void {
+  if (this.pixelBuffer.positions.length === 0) return;
+
+  // Send the current batch
+  console.log("SENT : ",this.pixelBuffer.positions.length)
+  this.canvasService.sendPixelUpdates(this.pixelBuffer.positions, this.pixelBuffer.edits);
+  this.totalPixelsSent += this.pixelBuffer.positions.length;
+  
+  // Clear the buffer
+  this.pixelBuffer = { positions: [], edits: [] };
+  this.lastSendTime = Date.now();
+}
+
+private stopDrawing(): void {
+  if (!this.isDrawing) return;
+  
+  this.isDrawing = false;
+  this.drawing = false;
+  this.lastPoint = null;
+
+  // Send any remaining pixels immediately
+  if (this.pixelBuffer.positions.length > 0) {
+    this.sendPixelBatch();
+  }
+}
+
+private startSendingPixels(): void {
+  // No interval needed - the scheduler handles timing
+  // This method can be empty or removed if not used elsewhere
+}
+
+// Update ngOnDestroy
+ngOnDestroy() {
+  if (this.sendTimeout) {
+    clearTimeout(this.sendTimeout);
+  }
+  clearInterval(this.sendInterval);
+  this.canvasService.disconnect(true);
+  this.stopAutoSave();
 }
 
 
 
+  private testEncodeDecode(): void {
+    const testRGBA = { r: 255, g: 128, b: 64, a: 255 };
+    const encoded = this.encodeRGBA(testRGBA.r, testRGBA.g, testRGBA.b, testRGBA.a);
+    const decoded = this.decodeRGBA(encoded);
 
+    if (
+      decoded.r === testRGBA.r &&
+      decoded.g === testRGBA.g &&
+      decoded.b === testRGBA.b &&
+      decoded.a === testRGBA.a
+    ) {
+      console.log('Encode/decode test passed');
+    } else {
+      console.error('Encode/decode test failed');
+    }
+  }
+// Add this property
+showUsersPanel: boolean = false;
 
+// Add these methods
+toggleUsersPanel(): void {
+  this.showUsersPanel = !this.showUsersPanel;
+}
 
+hideUsersPanel(): void {
+  this.showUsersPanel = false;
+}
 
-
-
-
-
+// Close panel when clicking outside
+@HostListener('document:click', ['$event'])
+onDocumentClick(event: MouseEvent): void {
+  if (this.showUsersPanel) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.user-count-container')) {
+      this.hideUsersPanel();
+    }
+  }
+}
+}

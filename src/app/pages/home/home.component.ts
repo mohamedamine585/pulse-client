@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import {Component, OnInit, OnDestroy, HostListener} from '@angular/core';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { interval, Subscription, of } from 'rxjs';
@@ -7,6 +7,7 @@ import { CanvasService } from '../../services/canvas.service';
 import { AuthService } from '../../services/auth.service';
 import { CanvasDialogComponent } from '../canvas-dialog/canvas-dialog/canvas-dialog.component';
 import { Canvas } from '../../models/canvas';
+import {FormsModule} from '@angular/forms';
 
 @Component({
   selector: 'app-home',
@@ -25,7 +26,8 @@ export class HomeComponent implements OnInit, OnDestroy {
     private router: Router,
     private dialog: MatDialog,
     private authService: AuthService,
-    private canvasService: CanvasService
+    private canvasService: CanvasService,
+    private forms: FormsModule
   ) {}
 
   ngOnInit(): void {
@@ -173,8 +175,22 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   /** Toggle user dropdown */
-  toggleDropdown(): void {
+// In your component class
+  toggleDropdown(event?: Event) {
+    if (event) {
+      event.stopPropagation();
+    }
     this.dropdownOpen = !this.dropdownOpen;
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: Event) {
+    if (this.dropdownOpen) {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.user-menu') && !target.closest('.dropdown-menu')) {
+        this.dropdownOpen = false;
+      }
+    }
   }
 
   /** Filter canvases by name */
@@ -185,4 +201,10 @@ export class HomeComponent implements OnInit, OnDestroy {
       c.name.toLowerCase().includes(query)
     );
   }
+  openProfile() {
+    console.log('Opening profile...');
+    this.dropdownOpen = false;
+    // Add your profile logic here
+  }
+
 }
